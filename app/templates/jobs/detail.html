@@ -3,6 +3,7 @@
 <section class="panel">
   <h1>{{ job.translated_title or job.title or job.original_filename }}</h1>
   <p>Status: <strong>{{ job.status.value }}</strong></p>
+  <p>Engine: <strong>{{ job.translator_provider }}</strong> | Languages: <strong>{{ job.source_language }} -> {{ job.target_language }}</strong></p>
   {% if job.error_message %}<p class="error">{{ job.error_message }}</p>{% endif %}
   {% if job.progress %}
     {% set percent = job.progress.get("percent", 0) %}

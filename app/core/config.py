@@ -26,10 +26,15 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://postgres:postgres@postgres:5432/epub_translate"
     redis_url: str = "redis://redis:6379/0"
+    enable_libretranslate: bool = True
     libretranslate_url: str = "http://libretranslate:5000"
     libretranslate_api_key: str | None = None
     libretranslate_timeout_seconds: int = 60
     libretranslate_retries: int = 3
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash-lite"
+    gemini_timeout_seconds: int = 120
+    gemini_retries: int = 3
 
     upload_dir: Path = BASE_DIR / "uploads"
     result_dir: Path = BASE_DIR / "results"
@@ -39,7 +44,7 @@ class Settings(BaseSettings):
     stale_job_timeout_seconds: int = 60 * 15
 
     source_language: str = "en"
-    target_language: str = "sr-Latn"
+    target_language: str = "sr"
     glossary_path: Path = BASE_DIR / "glossary.example.yaml"
     default_admin_email: EmailStr | None = None
     default_admin_password: str | None = None

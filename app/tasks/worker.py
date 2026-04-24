@@ -17,7 +17,7 @@ from app.services.translation_job import (
     translate_checkpoint_batch,
     translate_checkpoint_title,
 )
-from app.services.translators.libretranslate import LibreTranslateClient
+from app.services.translators.factory import get_translator
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +61,6 @@ def merge_progress(stage: str, progress: dict | None = None, **overrides: object
     return build_progress(stage, **merged)
 
 
-def get_translator(log_step):
-    return LibreTranslateClient(log_callback=log_step)
-
-
 @celery_app.task(name="app.tasks.worker.extract_job")
 def extract_job(job_id: str) -> None:
     db = SessionLocal()
@@ -85,7 +81,9 @@ def extract_job(job_id: str) -> None:
 
         prepared = prepare_translation_job(
             source_path,
-            get_translator(log_step),
+            get_translator(job.translator_provider, log_step),
+            source_language=job.source_language,
+            target_language=job.target_language,
             log_callback=log_step,
         )
         checkpoint = prepared.checkpoint
@@ -146,8 +144,10 @@ def translate_batch_job(job_id: str, batch_index: int) -> None:
         checkpoint, progress = translate_checkpoint_batch(
             db,
             checkpoint,
-            get_translator(log_step),
+            get_translator(job.translator_provider, log_step),
             batch_index,
+            source_language=job.source_language,
+            target_language=job.target_language,
             log_callback=log_step,
         )
         save_checkpoint(job_uuid, checkpoint)
@@ -190,7 +190,14 @@ def finalize_job(job_id: str) -> None:
         def log_step(message: str) -> None:
             logger.info("Job %s: %s", job_id, message)
 
-        checkpoint = translate_checkpoint_title(db, checkpoint, get_translator(log_step), log_callback=log_step)
+        checkpoint = translate_checkpoint_title(
+            db,
+            checkpoint,
+            get_translator(job.translator_provider, log_step),
+            source_language=job.source_language,
+            target_language=job.target_language,
+            log_callback=log_step,
+        )
         save_checkpoint(job_uuid, checkpoint)
         update_job_status(
             db,

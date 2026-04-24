@@ -1,21 +1,111 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="panel">
-  <h1>Your jobs</h1>
-  <p>Tier: <strong>{{ user.tier.value }}</strong></p>
+  <div class="section-heading">
+    <div>
+      <h1>Your jobs</h1>
+      <p>Tier: <strong>{{ user.tier.value }}</strong></p>
+    </div>
+  </div>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  <form method="post" action="/jobs" enctype="multipart/form-data">
+  <form method="post" action="/jobs" enctype="multipart/form-data" id="upload-form" class="upload-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Upload EPUB</label>
-    <input type="file" name="file" accept=".epub,application/epub+zip" required>
-    <button type="submit">Start translation</button>
+    <label class="field">
+      <span>Upload EPUB</span>
+      <input class="file-input" type="file" name="file" accept=".epub,application/epub+zip" required>
+    </label>
+
+    {% set available_options = translation_options | selectattr("available") | list %}
+    {% if available_options %}
+      {% set default_provider = available_options[0].id %}
+      <div class="control-grid">
+        <label class="field">
+          <span>Translation engine</span>
+          <select class="control" name="translator_provider" id="translator-provider" required>
+            {% for option in available_options %}
+              <option value="{{ option.id }}">{{ option.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <div class="language-fields control-grid-inner" data-provider-panel="libretranslate" {% if default_provider != "libretranslate" %}hidden{% endif %}>
+          <label class="field">
+            <span>Source language</span>
+            <select class="control" name="source_language" data-provider-input="libretranslate" {% if default_provider != "libretranslate" %}disabled{% endif %}>
+              {% for option in translation_options %}
+                {% if option.id == "libretranslate" and option.available %}
+                  {% for language in option.languages %}
+                    <option value="{{ language }}" {% if language == "en" %}selected{% endif %}>{{ language }}</option>
+                  {% endfor %}
+                {% endif %}
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Target language</span>
+            <select class="control" name="target_language" data-provider-input="libretranslate" {% if default_provider != "libretranslate" %}disabled{% endif %}>
+              {% for option in translation_options %}
+                {% if option.id == "libretranslate" and option.available %}
+                  {% for language in option.languages %}
+                    <option value="{{ language }}" {% if language in ["sr", "sr-Latn"] %}selected{% endif %}>{{ language }}</option>
+                  {% endfor %}
+                {% endif %}
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <div class="language-fields control-grid-inner" data-provider-panel="gemini" {% if default_provider != "gemini" %}hidden{% endif %}>
+          <label class="field">
+            <span>Source language</span>
+            <input class="control" name="source_language" data-provider-input="gemini" list="gemini-languages" value="English" placeholder="English" {% if default_provider != "gemini" %}disabled{% endif %}>
+          </label>
+
+          <label class="field">
+            <span>Target language</span>
+            <input class="control" name="target_language" data-provider-input="gemini" list="gemini-languages" value="Serbian Latin" placeholder="Serbian Latin" {% if default_provider != "gemini" %}disabled{% endif %}>
+          </label>
+          <datalist id="gemini-languages">
+            {% for option in translation_options %}
+              {% if option.id == "gemini" %}
+                {% for language in option.languages %}
+                  <option value="{{ language }}"></option>
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          </datalist>
+        </div>
+      </div>
+
+      <div class="submit-row">
+        <button type="submit" id="start-translation-button">Start translation</button>
+      </div>
+      <div class="upload-progress" id="upload-progress" hidden>
+        <div class="progress-row">
+          <strong>Uploading EPUB</strong>
+          <span id="upload-progress-label">Preparing...</span>
+        </div>
+        <div class="progress-bar progress-bar-indeterminate">
+          <span class="progress-fill" id="upload-progress-fill" style="width: 12%"></span>
+        </div>
+      </div>
+    {% else %}
+      <p class="error">No translation engine is configured. Enable LibreTranslate or set GEMINI_API_KEY.</p>
+      <button type="submit" disabled>Start translation</button>
+    {% endif %}
   </form>
 </section>
 <section class="panel">
+  <div class="section-heading">
+    <h2>Recent translations</h2>
+  </div>
   <table>
     <thead>
       <tr>
         <th>Book</th>
+        <th>Engine</th>
+        <th>Languages</th>
         <th>Status</th>
         <th>Created</th>
         <th></th>
@@ -25,16 +115,68 @@
       {% for job in jobs %}
         <tr>
           <td>{{ job.translated_title or job.title or job.original_filename }}</td>
+          <td>{{ job.translator_provider }}</td>
+          <td>{{ job.source_language }} -> {{ job.target_language }}</td>
           <td>{{ job.status.value }}</td>
-          <td>{{ job.created_at }}</td>
+          <td><time data-local-time datetime="{{ job.created_at.isoformat() }}">{{ job.created_at }}</time></td>
           <td><a href="/jobs/{{ job.id }}">View</a></td>
         </tr>
       {% else %}
         <tr>
-          <td colspan="4">No jobs yet.</td>
+          <td colspan="6">No jobs yet.</td>
         </tr>
       {% endfor %}
     </tbody>
   </table>
 </section>
+<script>
+  const providerSelect = document.querySelector("#translator-provider");
+  const providerPanels = document.querySelectorAll("[data-provider-panel]");
+  const providerInputs = document.querySelectorAll("[data-provider-input]");
+  const uploadForm = document.querySelector("#upload-form");
+  const uploadProgress = document.querySelector("#upload-progress");
+  const uploadProgressFill = document.querySelector("#upload-progress-fill");
+  const uploadProgressLabel = document.querySelector("#upload-progress-label");
+  const startButton = document.querySelector("#start-translation-button");
+
+  function syncProviderFields() {
+    if (!providerSelect) return;
+    const activeProvider = providerSelect.value;
+    providerPanels.forEach((panel) => {
+      panel.hidden = panel.dataset.providerPanel !== activeProvider;
+    });
+    providerInputs.forEach((input) => {
+      input.disabled = input.dataset.providerInput !== activeProvider;
+    });
+  }
+
+  providerSelect?.addEventListener("change", syncProviderFields);
+  syncProviderFields();
+
+  document.querySelectorAll("[data-local-time]").forEach((element) => {
+    const date = new Date(element.dateTime);
+    if (Number.isNaN(date.getTime())) return;
+    const parts = new Intl.DateTimeFormat(undefined, {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    element.textContent = `${values.day}.${values.month}.${values.year} - ${values.hour}:${values.minute}`;
+  });
+
+  uploadForm?.addEventListener("submit", () => {
+    if (!uploadProgress) return;
+    uploadProgress.hidden = false;
+    uploadProgressLabel.textContent = "Uploading...";
+    startButton?.setAttribute("disabled", "disabled");
+    if (startButton) startButton.textContent = "Uploading";
+    requestAnimationFrame(() => {
+      uploadProgressFill.style.width = "72%";
+    });
+  });
+</script>
 {% endblock %}

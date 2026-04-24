@@ -11,7 +11,7 @@ from app.services.checkpoints import JobCheckpoint
 from app.services.epub import Segment, extract_segments, read_book, rebuild_translated_epub
 from app.services.glossary import Glossary
 from app.services.text import strip_html_tags
-from app.services.translation_pipeline import LogCallback, translate_texts
+from app.services.translation_pipeline import LogCallback, display_language_name, translate_texts
 from app.services.translators.base import Translator
 
 
@@ -102,6 +102,10 @@ def build_batches(units: list[TranslationUnit], *, char_budget: int = DEFAULT_BA
     return batches
 
 
+def translator_batch_char_budget(translator: Translator) -> int:
+    return int(getattr(translator, "batch_char_budget", DEFAULT_BATCH_CHAR_BUDGET) or DEFAULT_BATCH_CHAR_BUDGET)
+
+
 def split_translated_unit(translated_html: str, segment_count: int) -> list[str]:
     if segment_count == 1:
         return [translated_html]
@@ -122,15 +126,19 @@ def translate_unit_with_fallback(
     checkpoint: JobCheckpoint,
     unit: TranslationUnit,
     *,
+    source_language: str | None = None,
+    target_language: str | None = None,
     log_callback: LogCallback | None = None,
 ) -> list[str]:
+    source_language = source_language or settings.source_language
+    target_language = target_language or settings.target_language
     translated_unit = translate_texts(
         db,
         translator,
         [unit.source_text],
         glossary,
-        settings.source_language,
-        settings.target_language,
+        source_language,
+        target_language,
         log_callback=log_callback,
     )[0]
     try:
@@ -148,8 +156,8 @@ def translate_unit_with_fallback(
             translator,
             segment_texts,
             glossary,
-            settings.source_language,
-            settings.target_language,
+            source_language,
+            target_language,
             log_callback=log_callback,
         )
 
@@ -158,14 +166,19 @@ def prepare_translation_job(
     input_path: Path,
     translator: Translator,
     *,
+    source_language: str | None = None,
+    target_language: str | None = None,
     log_callback: LogCallback | None = None,
 ) -> PreparedJob:
+    source_language = source_language or settings.source_language
+    target_language = target_language or settings.target_language
     if hasattr(translator, "ensure_language_supported"):
-        translator.ensure_language_supported(settings.source_language, settings.target_language)
+        translator.ensure_language_supported(source_language, target_language)
     book = read_book(input_path)
     segments = extract_segments(book)
     units = build_translation_units(segments)
-    batches = build_batches(units)
+    batch_char_budget = translator_batch_char_budget(translator)
+    batches = build_batches(units, char_budget=batch_char_budget)
     original_title = None
     title_metadata = book.get_metadata("DC", "title")
     if title_metadata:
@@ -180,7 +193,7 @@ def prepare_translation_job(
         stored_filename=input_path.name,
         original_title=original_title,
         translated_title=None,
-        batch_size=DEFAULT_BATCH_CHAR_BUDGET,
+        batch_size=batch_char_budget,
         total_segments=total_segments,
         total_batches=total_batches,
         segments=segments,
@@ -207,8 +220,12 @@ def translate_checkpoint_batch(
     translator: Translator,
     batch_index: int,
     *,
+    source_language: str | None = None,
+    target_language: str | None = None,
     log_callback: LogCallback | None = None,
 ) -> tuple[JobCheckpoint, dict]:
+    source_language = source_language or settings.source_language
+    target_language = target_language or settings.target_language
     units = build_translation_units(checkpoint.segments)
     batches = build_batches(units, char_budget=checkpoint.batch_size)
     batch_units = batches[batch_index]
@@ -223,8 +240,8 @@ def translate_checkpoint_batch(
         translator,
         [unit.source_text for unit in batch_units],
         glossary,
-        settings.source_language,
-        settings.target_language,
+        source_language,
+        target_language,
         log_callback=log_callback,
     )
     for unit, translated_unit in zip(batch_units, translated, strict=True):
@@ -243,8 +260,8 @@ def translate_checkpoint_batch(
                 translator,
                 segment_texts,
                 glossary,
-                settings.source_language,
-                settings.target_language,
+                source_language,
+                target_language,
                 log_callback=log_callback,
             )
         for segment_index, translated_part in zip(unit.segment_indexes, translated_parts, strict=True):
@@ -269,8 +286,12 @@ def translate_checkpoint_title(
     checkpoint: JobCheckpoint,
     translator: Translator,
     *,
+    source_language: str | None = None,
+    target_language: str | None = None,
     log_callback: LogCallback | None = None,
 ) -> JobCheckpoint:
+    source_language = source_language or settings.source_language
+    target_language = target_language or settings.target_language
     if not checkpoint.original_title:
         checkpoint.translated_title = None
         return checkpoint
@@ -282,11 +303,11 @@ def translate_checkpoint_title(
         translator,
         [checkpoint.original_title],
         glossary,
-        settings.source_language,
-        settings.target_language,
+        source_language,
+        target_language,
         log_callback=log_callback,
     )[0]
-    checkpoint.translated_title = f"{checkpoint.translated_title} (Serbian)"
+    checkpoint.translated_title = f"{checkpoint.translated_title} ({display_language_name(target_language)})"
     return checkpoint
 
 

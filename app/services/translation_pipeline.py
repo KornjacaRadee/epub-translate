@@ -28,6 +28,18 @@ def chunked(values: list[Segment], size: int) -> list[list[Segment]]:
     return [values[index:index + size] for index in range(0, len(values), size)]
 
 
+def cache_language_key(translator: Translator, language: str) -> str:
+    namespace = getattr(translator, "cache_namespace", "default")
+    return f"{namespace}:{language}"
+
+
+def display_language_name(language: str) -> str:
+    normalized = language.strip().lower()
+    if normalized in {"sr", "sr-latn", "serbian", "serbian latin"}:
+        return "Serbian"
+    return language
+
+
 def translate_texts(
     db: Session,
     translator: Translator,
@@ -41,8 +53,11 @@ def translate_texts(
     missing: list[str] = []
     missing_indexes: list[int] = []
 
+    cache_source_language = cache_language_key(translator, source_language)
+    cache_target_language = cache_language_key(translator, target_language)
+
     for index, text in enumerate(texts):
-        cached = get_cached_translation(db, text, source_language, target_language)
+        cached = get_cached_translation(db, text, cache_source_language, cache_target_language)
         if cached is not None:
             results.append(enforce_target_script(cached, target_language))
         else:
@@ -66,7 +81,7 @@ def translate_texts(
             final_text = glossary.restore(translated_text, replacements)
             final_text = enforce_target_script(final_text, target_language)
             results[slot] = final_text
-            cache_translation(db, original, final_text, source_language, target_language)
+            cache_translation(db, original, final_text, cache_source_language, cache_target_language)
     return results
 
 
@@ -152,7 +167,7 @@ def translate_epub_file(
             settings.target_language,
             log_callback=log_callback,
         )[0]
-        translated_title = f"{translated_title} (Serbian)"
+        translated_title = f"{translated_title} ({display_language_name(settings.target_language)})"
 
     if progress_callback:
         progress_callback(

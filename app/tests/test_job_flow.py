@@ -24,7 +24,12 @@ def test_authenticated_user_can_create_job(client, db_session, monkeypatch, tmp_
     csrf_token = extract_csrf_token(jobs_page.text)
     response = client.post(
         "/jobs",
-        data={"csrf_token": csrf_token},
+        data={
+            "csrf_token": csrf_token,
+            "translator_provider": "gemini",
+            "source_language": "English",
+            "target_language": "Serbian Latin",
+        },
         files={"file": ("upload.epub", epub_path.read_bytes(), "application/epub+zip")},
         follow_redirects=False,
     )

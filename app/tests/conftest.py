@@ -34,6 +34,8 @@ def client(db_session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "upload_dir", upload_dir)
     monkeypatch.setattr(settings, "result_dir", result_dir)
     monkeypatch.setattr(settings, "global_free_active_job_limit", 2)
+    monkeypatch.setattr(settings, "enable_libretranslate", False)
+    monkeypatch.setattr(settings, "gemini_api_key", "test-key")
 
     def override_get_db():
         yield db_session

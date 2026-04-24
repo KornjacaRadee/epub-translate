@@ -95,6 +95,12 @@ Visit:
 
 Yes, this project can be run as prebuilt Docker images so users do not need the source tree to build the app image themselves.
 
+The app can use either LibreTranslate or Gemini 2.5 Flash:
+
+- If LibreTranslate is reachable, LibreTranslate appears as an engine and the app shows the languages installed in that LibreTranslate instance.
+- If `GEMINI_API_KEY` is set, Gemini 2.5 Flash appears as an engine and users can type any source and target language name.
+- If only one engine is configured, only that engine is shown.
+
 To run everything without cloning this repository, create a new folder and add this `docker-compose.yml`:
 
 ```yaml
@@ -194,6 +200,14 @@ If you add a new `.argosmodel` later, restart LibreTranslate so it can import it
 docker compose restart libretranslate
 ```
 
+For a Gemini-only stack with no LibreTranslate container, remove the `libretranslate` service and the `libretranslate` entries under `depends_on`, or use the included `docker-compose.gemini.yml` file:
+
+```bash
+docker compose -f docker-compose.gemini.yml up -d
+```
+
+For Gemini-only mode, set `ENABLE_LIBRETRANSLATE=false` and set `GEMINI_API_KEY` in `.env`.
+
 Create a `.env` file in the same folder:
 
 ```bash
@@ -209,9 +223,14 @@ BASE_URL=http://localhost:8000
 
 DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/epub_translate
 REDIS_URL=redis://redis:6379/0
+ENABLE_LIBRETRANSLATE=true
 LIBRETRANSLATE_URL=http://libretranslate:5000
 LIBRETRANSLATE_TIMEOUT_SECONDS=60
 LIBRETRANSLATE_RETRIES=3
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_TIMEOUT_SECONDS=120
+GEMINI_RETRIES=3
 
 UPLOAD_DIR=/app/uploads
 RESULT_DIR=/app/results
@@ -242,6 +261,12 @@ Open the app at:
 
 - `http://localhost:8000`
 
+If the repository or package is private, users must log in first with a GitHub token that has package read access:
+
+```bash
+echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
+
 
 ## Environment Variables
 
@@ -251,8 +276,11 @@ Important ones include:
 
 - `DATABASE_URL`
 - `REDIS_URL`
+- `ENABLE_LIBRETRANSLATE`
 - `LIBRETRANSLATE_URL`
 - `LIBRETRANSLATE_TIMEOUT_SECONDS`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL`
 - `GLOBAL_FREE_ACTIVE_JOB_LIMIT`
 - `SOURCE_LANGUAGE`
 - `TARGET_LANGUAGE`
@@ -305,3 +333,4 @@ python -m pytest -q
 ## In Plain English
 
 It is a self-hosted EPUB translation service. A user logs in, uploads an English EPUB, the app translates the book to Serbian Latin in the background, and the user downloads a translated EPUB when it is done.
+ 

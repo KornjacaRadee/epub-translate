@@ -17,6 +17,9 @@ LogCallback = Callable[[str], None]
 
 
 class LibreTranslateClient:
+    cache_namespace = "libretranslate"
+    batch_char_budget = 1800
+
     def __init__(self, base_url: str | None = None, log_callback: LogCallback | None = None):
         self.base_url = (base_url or settings.libretranslate_url).rstrip("/")
         self.log_callback = log_callback

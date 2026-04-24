@@ -118,6 +118,9 @@ def create_job(
     original_filename: str,
     stored_filename: str,
     file_size_bytes: int,
+    translator_provider: str,
+    source_language: str,
+    target_language: str,
 ) -> Job:
     job = Job(
         user_id=user.id,
@@ -126,8 +129,9 @@ def create_job(
         original_filename=original_filename,
         stored_filename=stored_filename,
         file_size_bytes=file_size_bytes,
-        source_language=settings.source_language,
-        target_language=settings.target_language,
+        translator_provider=translator_provider,
+        source_language=source_language,
+        target_language=target_language,
         progress={"stage": JobStatus.UPLOADED.value},
     )
     db.add(job)

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import admin_user, current_user
 from app.core.csrf import read_csrf_token, set_csrf_cookie, validate_csrf
+from app.core.config import settings
 from app.core.security import new_csrf_token
 from app.core.session import clear_session_cookie, set_session_cookie
 from app.core.templates import templates
@@ -28,7 +29,9 @@ from app.services.jobs import (
     mark_stale_active_jobs,
 )
 from app.services.storage import result_path, save_upload
+from app.services.translation_options import all_translation_options, available_translation_options, validate_translation_request
 from app.tasks.worker import queue_translation_job, resume_translation_job
+from app.services.translators.gemini import GeminiTranslator
 from app.services.translators.libretranslate import LibreTranslateClient
 
 
@@ -132,7 +135,11 @@ def jobs_page(request: Request, user: User = Depends(current_user), db: Session 
     mark_stale_active_jobs(db, user=user)
     recover_jobs(db, user=user)
     jobs = list(db.scalars(select(Job).where(Job.user_id == user.id).order_by(Job.created_at.desc())))
-    return render(request, "jobs/list.html", {"user": user, "jobs": jobs, "error": None})
+    return render(
+        request,
+        "jobs/list.html",
+        {"user": user, "jobs": jobs, "error": None, "translation_options": all_translation_options()},
+    )
 
 
 @router.post("/jobs")
@@ -140,20 +147,42 @@ def upload_job(
     request: Request,
     file: UploadFile,
     csrf_token: str = Form(...),
+    translator_provider: str = Form(...),
+    source_language: str = Form(...),
+    target_language: str = Form(...),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
     validate_csrf(request, csrf_token)
     try:
+        translator_provider, source_language, target_language = validate_translation_request(
+            translator_provider,
+            source_language,
+            target_language,
+        )
         ensure_can_start_job(db, user, original_filename=file.filename or "book.epub")
         stored_filename, size = save_upload(file)
-        job = create_job(db, user=user, original_filename=file.filename or "book.epub", stored_filename=stored_filename, file_size_bytes=size)
+        job = create_job(
+            db,
+            user=user,
+            original_filename=file.filename or "book.epub",
+            stored_filename=stored_filename,
+            file_size_bytes=size,
+            translator_provider=translator_provider,
+            source_language=source_language,
+            target_language=target_language,
+        )
         queue_translation_job(job.id)
         return RedirectResponse(f"/jobs/{job.id}", status_code=status.HTTP_303_SEE_OTHER)
     except ValueError as exc:
         mark_stale_active_jobs(db, user=user)
         jobs = list(db.scalars(select(Job).where(Job.user_id == user.id).order_by(Job.created_at.desc())))
-        return render(request, "jobs/list.html", {"user": user, "jobs": jobs, "error": str(exc)}, status_code=400)
+        return render(
+            request,
+            "jobs/list.html",
+            {"user": user, "jobs": jobs, "error": str(exc), "translation_options": all_translation_options()},
+            status_code=400,
+        )
 
 
 @router.get("/jobs/{job_id}", response_class=HTMLResponse)
@@ -213,8 +242,15 @@ def update_free_pool_limit(
 def health(db: Session = Depends(get_db)):
     db.execute(text("SELECT 1"))
     libretranslate_ok = False
+    if settings.enable_libretranslate:
+        try:
+            libretranslate_ok = LibreTranslateClient().healthcheck()
+        except Exception:
+            libretranslate_ok = False
+    gemini_ok = False
     try:
-        libretranslate_ok = LibreTranslateClient().healthcheck()
+        if any(option.id == "gemini" for option in available_translation_options()):
+            gemini_ok = GeminiTranslator().healthcheck()
     except Exception:
-        libretranslate_ok = False
-    return {"status": "ok", "database": True, "libretranslate": libretranslate_ok}
+        gemini_ok = False
+    return {"status": "ok", "database": True, "libretranslate": libretranslate_ok, "gemini": gemini_ok}
