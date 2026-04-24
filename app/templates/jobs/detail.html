@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>{{ job.translated_title or job.title or job.original_filename }}</h1>
+  <p>Status: <strong>{{ job.status.value }}</strong></p>
+  {% if job.error_message %}<p class="error">{{ job.error_message }}</p>{% endif %}
+  {% if job.progress %}
+    {% set percent = job.progress.get("percent", 0) %}
+    {% set translated = job.progress.get("segments_translated", 0) %}
+    {% set total = job.progress.get("segments_total", 0) %}
+    {% if job.status.value in ["extracting", "translating", "rebuilding", "completed"] and total %}
+      <div class="progress-card">
+        <div class="progress-row">
+          <strong>{{ percent }}%</strong>
+          <span>{{ translated }}/{{ total }} segments</span>
+        </div>
+        <div class="progress-bar" aria-label="Translation progress">
+          <div class="progress-fill" style="width: {{ percent }}%;"></div>
+        </div>
+        <p class="progress-meta">
+          {% if job.progress.get("batches_total") %}
+            Batches: {{ job.progress.get("batches_completed", 0) }}/{{ job.progress.get("batches_total") }}
+          {% endif %}
+        </p>
+      </div>
+    {% endif %}
+    {% if job.progress.get("detail") %}
+      <pre class="progress">{{ job.progress.get("detail") }}</pre>
+    {% endif %}
+  {% endif %}
+  {% if job.status.value == "completed" %}
+    <a class="button" href="/jobs/{{ job.id }}/download">Download translated EPUB</a>
+  {% endif %}
+  <p><a href="/jobs">Back to jobs</a></p>
+</section>
+{% if job.status.value not in ["completed", "failed"] %}
+<script>
+  setTimeout(function () {
+    window.location.reload();
+  }, 5000);
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>Admin</h1>
+  <p>Recent users and jobs.</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/admin/settings/free-pool">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Global free active job limit</label>
+    <input type="number" name="free_pool_limit" min="1" value="{{ current_limit }}" required>
+    <button type="submit">Save limit</button>
+  </form>
+</section>
+<section class="panel">
+  <h2>Users</h2>
+  <table>
+    <thead>
+      <tr><th>Email</th><th>Tier</th><th>Created</th></tr>
+    </thead>
+    <tbody>
+      {% for item in users %}
+        <tr><td>{{ item.email }}</td><td>{{ item.tier.value }}</td><td>{{ item.created_at }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+<section class="panel">
+  <h2>Jobs</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>User tier</th><th>Status</th><th>Book</th></tr>
+    </thead>
+    <tbody>
+      {% for item in jobs %}
+        <tr><td>{{ item.id }}</td><td>{{ item.user_tier.value }}</td><td>{{ item.status.value }}</td><td>{{ item.translated_title or item.title or item.original_filename }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>Your jobs</h1>
+  <p>Tier: <strong>{{ user.tier.value }}</strong></p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/jobs" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Upload EPUB</label>
+    <input type="file" name="file" accept=".epub,application/epub+zip" required>
+    <button type="submit">Start translation</button>
+  </form>
+</section>
+<section class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Book</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+        <tr>
+          <td>{{ job.translated_title or job.title or job.original_filename }}</td>
+          <td>{{ job.status.value }}</td>
+          <td>{{ job.created_at }}</td>
+          <td><a href="/jobs/{{ job.id }}">View</a></td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="4">No jobs yet.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
