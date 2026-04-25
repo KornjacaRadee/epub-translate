@@ -2,7 +2,13 @@ services:
   app:
     image: ${APP_IMAGE:-ghcr.io/kornjacaradee/epub-translate:latest}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    env_file: .env
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-replace-with-a-long-random-secret}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@example.com}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-change-this-password}
+      ENABLE_LIBRETRANSLATE: "false"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
     ports:
       - "8000:8000"
     depends_on:
@@ -17,7 +23,13 @@ services:
   worker:
     image: ${APP_IMAGE:-ghcr.io/kornjacaradee/epub-translate:latest}
     command: celery -A app.tasks.celery_worker worker --loglevel=INFO
-    env_file: .env
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-replace-with-a-long-random-secret}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@example.com}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-change-this-password}
+      ENABLE_LIBRETRANSLATE: "false"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
     depends_on:
       postgres:
         condition: service_healthy

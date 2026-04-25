@@ -56,14 +56,16 @@ The worker runs this as resumable steps, so bigger books are no longer forced th
 
 ## Local Development
 
-### 1. Create your env file
+### 1. Optional: create your env file
 
-Copy `.env.example` to `.env` and update the important values:
+Copy `.env.example` to `.env` only if you want to override defaults outside Docker Compose.
+
+For local Docker use, the important optional overrides are:
 
 - `SECRET_KEY`
 - `DEFAULT_ADMIN_EMAIL`
 - `DEFAULT_ADMIN_PASSWORD`
-- `SECURE_COOKIES=false` for plain local HTTP
+- `GEMINI_API_KEY`
 
 ### 2. Start the stack
 
@@ -100,7 +102,7 @@ The app can use either LibreTranslate or Gemini 2.5 Flash:
 - If LibreTranslate is reachable, LibreTranslate appears as an engine and the app shows the languages installed in that LibreTranslate instance.
 - If `GEMINI_API_KEY` is set, Gemini 2.5 Flash appears as an engine and users can type any source and target language name.
 - If only one engine is configured, only that engine is shown.
-
+- You can remove libretranslate from `docker-compose.yml` if you don't need it.
 To run everything without cloning this repository, create a new folder and add this `docker-compose.yml`:
 
 ```yaml
@@ -108,7 +110,13 @@ services:
   app:
     image: ghcr.io/kornjacaradee/epub-translate:latest
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    env_file: .env
+    environment:
+      SECRET_KEY: replace-with-a-long-random-secret
+      DEFAULT_ADMIN_EMAIL: admin@example.com
+      DEFAULT_ADMIN_PASSWORD: change-this-password
+      ENABLE_LIBRETRANSLATE: "true"
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+      GEMINI_API_KEY: ""
     ports:
       - "8000:8000"
     depends_on:
@@ -116,8 +124,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      libretranslate:
-        condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
       - ./results:/app/results
@@ -125,14 +131,18 @@ services:
   worker:
     image: ghcr.io/kornjacaradee/epub-translate:latest
     command: celery -A app.tasks.celery_worker worker --loglevel=INFO
-    env_file: .env
+    environment:
+      SECRET_KEY: replace-with-a-long-random-secret
+      DEFAULT_ADMIN_EMAIL: admin@example.com
+      DEFAULT_ADMIN_PASSWORD: change-this-password
+      ENABLE_LIBRETRANSLATE: "true"
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+      GEMINI_API_KEY: ""
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
-      libretranslate:
-        condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
       - ./results:/app/results
@@ -200,50 +210,13 @@ If you add a new `.argosmodel` later, restart LibreTranslate so it can import it
 docker compose restart libretranslate
 ```
 
-For a Gemini-only stack with no LibreTranslate container, remove the `libretranslate` service and the `libretranslate` entries under `depends_on`, or use the included `docker-compose.gemini.yml` file:
+LibreTranslate is optional. The app and worker can start without it, so for a Gemini-only stack use the included `docker-compose.gemini.yml` file:
 
 ```bash
 docker compose -f docker-compose.gemini.yml up -d
 ```
 
-For Gemini-only mode, set `ENABLE_LIBRETRANSLATE=false` and set `GEMINI_API_KEY` in `.env`.
-
-Create a `.env` file in the same folder:
-
-```bash
-APP_NAME=EPUB Translate
-ENVIRONMENT=production
-DEBUG=false
-SECRET_KEY=replace-with-a-long-random-secret
-SESSION_COOKIE_NAME=epub_translate_session
-SESSION_MAX_AGE_SECONDS=604800
-CSRF_TOKEN_TTL_SECONDS=7200
-SECURE_COOKIES=false
-BASE_URL=http://localhost:8000
-
-DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/epub_translate
-REDIS_URL=redis://redis:6379/0
-ENABLE_LIBRETRANSLATE=true
-LIBRETRANSLATE_URL=http://libretranslate:5000
-LIBRETRANSLATE_TIMEOUT_SECONDS=60
-LIBRETRANSLATE_RETRIES=3
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash-lite
-GEMINI_TIMEOUT_SECONDS=120
-GEMINI_RETRIES=3
-
-UPLOAD_DIR=/app/uploads
-RESULT_DIR=/app/results
-MAX_UPLOAD_SIZE_BYTES=52428800
-GLOBAL_FREE_ACTIVE_JOB_LIMIT=2
-
-SOURCE_LANGUAGE=en
-TARGET_LANGUAGE=sr
-GLOSSARY_PATH=/app/glossary.example.yaml
-
-DEFAULT_ADMIN_EMAIL=admin@example.com
-DEFAULT_ADMIN_PASSWORD=change-this-password
-```
+For Gemini-only mode, set `GEMINI_API_KEY` directly in the compose file or export it in your shell before running `docker compose`.
 
 Start the stack:
 
@@ -270,23 +243,17 @@ echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password
 
 ## Environment Variables
 
-The main settings live in `.env`.
+`.env` support is still there, but it is optional. The app reads normal process environment variables, so Docker Compose can own the config directly.
 
-Important ones include:
+Most settings already have code defaults. The ones users are most likely to override are:
 
-- `DATABASE_URL`
-- `REDIS_URL`
-- `ENABLE_LIBRETRANSLATE`
-- `LIBRETRANSLATE_URL`
-- `LIBRETRANSLATE_TIMEOUT_SECONDS`
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL`
-- `GLOBAL_FREE_ACTIVE_JOB_LIMIT`
-- `SOURCE_LANGUAGE`
-- `TARGET_LANGUAGE`
-- `GLOSSARY_PATH`
+- `SECRET_KEY`
 - `DEFAULT_ADMIN_EMAIL`
 - `DEFAULT_ADMIN_PASSWORD`
+- `GEMINI_API_KEY`
+- `ENABLE_LIBRETRANSLATE`
+- `LIBRETRANSLATE_URL`
+- `LIBRETRANSLATE_API_KEY`
 
 
 ## Translation Quality Notes

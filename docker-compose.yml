@@ -2,7 +2,14 @@ services:
   app:
     build: .
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    env_file: .env
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-replace-with-a-long-random-secret}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@example.com}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-change-this-password}
+      ENABLE_LIBRETRANSLATE: ${ENABLE_LIBRETRANSLATE:-true}
+      LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-http://libretranslate:5000}
+      LIBRETRANSLATE_API_KEY: ${LIBRETRANSLATE_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -10,8 +17,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-      libretranslate:
-        condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
       - ./results:/app/results
@@ -19,14 +24,19 @@ services:
   worker:
     build: .
     command: celery -A app.tasks.celery_worker worker --loglevel=INFO
-    env_file: .env
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-replace-with-a-long-random-secret}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@example.com}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-change-this-password}
+      ENABLE_LIBRETRANSLATE: ${ENABLE_LIBRETRANSLATE:-true}
+      LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-http://libretranslate:5000}
+      LIBRETRANSLATE_API_KEY: ${LIBRETRANSLATE_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
-      libretranslate:
-        condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
       - ./results:/app/results
