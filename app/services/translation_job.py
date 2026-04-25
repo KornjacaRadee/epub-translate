@@ -106,6 +106,23 @@ def translator_batch_char_budget(translator: Translator) -> int:
     return int(getattr(translator, "batch_char_budget", DEFAULT_BATCH_CHAR_BUDGET) or DEFAULT_BATCH_CHAR_BUDGET)
 
 
+def build_previous_context(
+    units: list[TranslationUnit],
+    upto_index: int,
+    *,
+    max_chars: int = 320,
+    max_units: int = 2,
+) -> str | None:
+    if upto_index <= 0:
+        return None
+    recent_units = units[max(0, upto_index - max_units):upto_index]
+    parts = [strip_html_tags(unit.source_text).strip() for unit in recent_units]
+    context = "\n\n".join(part for part in parts if part).strip()
+    if len(context) > max_chars:
+        context = context[-max_chars:].strip()
+    return context or None
+
+
 def split_translated_unit(translated_html: str, segment_count: int) -> list[str]:
     if segment_count == 1:
         return [translated_html]
@@ -132,6 +149,9 @@ def translate_unit_with_fallback(
 ) -> list[str]:
     source_language = source_language or settings.source_language
     target_language = target_language or settings.target_language
+    units = build_translation_units(checkpoint.segments)
+    unit_index = next((index for index, item in enumerate(units) if item.segment_indexes == unit.segment_indexes), 0)
+    previous_context = build_previous_context(units, unit_index)
     translated_unit = translate_texts(
         db,
         translator,
@@ -139,6 +159,7 @@ def translate_unit_with_fallback(
         glossary,
         source_language,
         target_language,
+        previous_context=previous_context,
         log_callback=log_callback,
     )[0]
     try:
@@ -158,6 +179,7 @@ def translate_unit_with_fallback(
             glossary,
             source_language,
             target_language,
+            previous_context=previous_context,
             log_callback=log_callback,
         )
 
@@ -229,6 +251,7 @@ def translate_checkpoint_batch(
     units = build_translation_units(checkpoint.segments)
     batches = build_batches(units, char_budget=checkpoint.batch_size)
     batch_units = batches[batch_index]
+    previous_context = build_previous_context(units, sum(len(batch) for batch in batches[:batch_index]))
     unit_segment_count = sum(len(unit.segment_indexes) for unit in batch_units)
     if log_callback:
         log_callback(
@@ -242,6 +265,7 @@ def translate_checkpoint_batch(
         glossary,
         source_language,
         target_language,
+        previous_context=previous_context,
         log_callback=log_callback,
     )
     for unit, translated_unit in zip(batch_units, translated, strict=True):
@@ -262,6 +286,7 @@ def translate_checkpoint_batch(
                 glossary,
                 source_language,
                 target_language,
+                previous_context=previous_context,
                 log_callback=log_callback,
             )
         for segment_index, translated_part in zip(unit.segment_indexes, translated_parts, strict=True):

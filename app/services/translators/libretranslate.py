@@ -125,7 +125,13 @@ class LibreTranslateClient:
             right = self._translate_with_timeout_fallback(texts[midpoint:], source_language, target_language)
             return left + right
 
-    def translate_batch(self, texts: list[str], source_language: str, target_language: str) -> list[str]:
+    def translate_batch(
+        self,
+        texts: list[str],
+        source_language: str,
+        target_language: str,
+        previous_context: str | None = None,
+    ) -> list[str]:
         if not texts:
             return []
         try:

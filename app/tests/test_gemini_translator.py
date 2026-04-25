@@ -16,7 +16,7 @@ def test_gemini_quota_error_does_not_split_batch(monkeypatch):
     translator.log_callback = None
     calls = []
 
-    def fail(texts, source_language, target_language):
+    def fail(texts, source_language, target_language, previous_context=None):
         calls.append(list(texts))
         raise RuntimeError("429 RESOURCE_EXHAUSTED retryDelay': '59s'")
 
@@ -26,3 +26,18 @@ def test_gemini_quota_error_does_not_split_batch(monkeypatch):
         translator.translate_batch(["a", "b", "c", "d"], "English", "Serbian Latin")
 
     assert calls == [["a", "b", "c", "d"]]
+
+
+def test_gemini_prompt_includes_previous_context():
+    translator = GeminiTranslator.__new__(GeminiTranslator)
+
+    prompt = translator._build_prompt(
+        ["Current sentence."],
+        "English",
+        "Serbian Latin",
+        previous_context="Previous sentence for meaning.",
+    )
+
+    assert "Context from previous passage, for meaning only." in prompt
+    assert "Do not translate it unless it appears in the input array:" in prompt
+    assert "Previous sentence for meaning." in prompt

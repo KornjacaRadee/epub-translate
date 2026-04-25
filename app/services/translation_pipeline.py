@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import inspect
 from typing import Callable
 
 from sqlalchemy.orm import Session
@@ -22,6 +23,14 @@ class TranslationResult:
 
 ProgressCallback = Callable[[dict], None]
 LogCallback = Callable[[str], None]
+
+
+def translator_supports_previous_context(translator: Translator) -> bool:
+    try:
+        signature = inspect.signature(translator.translate_batch)
+    except (TypeError, ValueError):
+        return False
+    return "previous_context" in signature.parameters
 
 
 def chunked(values: list[Segment], size: int) -> list[list[Segment]]:
@@ -47,17 +56,19 @@ def translate_texts(
     glossary: Glossary,
     source_language: str,
     target_language: str,
+    previous_context: str | None = None,
     log_callback: LogCallback | None = None,
 ) -> list[str]:
     results: list[str] = []
     missing: list[str] = []
     missing_indexes: list[int] = []
+    use_cache = not previous_context
 
     cache_source_language = cache_language_key(translator, source_language)
     cache_target_language = cache_language_key(translator, target_language)
 
     for index, text in enumerate(texts):
-        cached = get_cached_translation(db, text, cache_source_language, cache_target_language)
+        cached = get_cached_translation(db, text, cache_source_language, cache_target_language) if use_cache else None
         if cached is not None:
             results.append(enforce_target_script(cached, target_language))
         else:
@@ -76,12 +87,21 @@ def translate_texts(
             protected, replacements = glossary.protect(text)
             protected_texts.append(protected)
             replacements_by_index.append(replacements)
-        translated = translator.translate_batch(protected_texts, source_language, target_language)
+        if previous_context and translator_supports_previous_context(translator):
+            translated = translator.translate_batch(
+                protected_texts,
+                source_language,
+                target_language,
+                previous_context=previous_context,
+            )
+        else:
+            translated = translator.translate_batch(protected_texts, source_language, target_language)
         for slot, original, translated_text, replacements in zip(missing_indexes, missing, translated, replacements_by_index, strict=True):
             final_text = glossary.restore(translated_text, replacements)
             final_text = enforce_target_script(final_text, target_language)
             results[slot] = final_text
-            cache_translation(db, original, final_text, cache_source_language, cache_target_language)
+            if use_cache:
+                cache_translation(db, original, final_text, cache_source_language, cache_target_language)
     return results
 
 

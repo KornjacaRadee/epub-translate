@@ -58,17 +58,51 @@ class GeminiTranslator:
         if not source_language.strip() or not target_language.strip():
             raise GeminiTranslateError("Gemini translation needs both source and target languages.")
 
-    def _build_prompt(self, texts: list[str], source_language: str, target_language: str) -> str:
+    def _build_prompt(
+        self,
+        texts: list[str],
+        source_language: str,
+        target_language: str,
+        previous_context: str | None = None,
+    ) -> str:
         payload = json.dumps(texts, ensure_ascii=False)
+        context_block = ""
+        if previous_context:
+            context_block = (
+                "Previous context for continuity only:\n"
+                "- Use it to understand characters, pronouns, tone, terminology, and scene continuity.\n"
+                "- Do not translate, summarize, copy, or include this context unless the same text appears in the input JSON array.\n\n"
+                f"{previous_context}\n\n"
+            )
         return (
-            "Translate each item in this JSON array.\n"
+            "You are a professional literary translator and editor.\n"
+            "Translate each item in this JSON array for a real ebook reader.\n\n"
             f"Source language: {source_language}\n"
             f"Target language: {target_language}\n\n"
-            "Rules:\n"
-            "- Return only a JSON array of strings, with the same length and order as the input.\n"
-            "- Preserve all HTML tags, attributes, entities, placeholders, and data-* attributes exactly.\n"
+            f"{context_block}"
+            "Main goal:\n"
+            "- Produce a natural, fluent, readable translation in the target language.\n"
+            "- Preserve the original meaning, tone, emotion, and narrative flow.\n"
+            "- Do not translate word-for-word when it sounds unnatural.\n"
+            "- Rewrite sentence structure when needed so it reads like native writing.\n"
+            "- Keep dialogue natural and easy to understand.\n"
+            "- Keep character names, places, brands, invented terms, and proper nouns unchanged unless they have a standard translation.\n"
+            "- Preserve consistency of terminology across all items.\n\n"
+            "HTML and formatting rules:\n"
+            "- Preserve all HTML tags exactly.\n"
+            "- Preserve all attributes exactly, including href, src, class, id, style, data-* and aria-* attributes.\n"
+            "- Preserve HTML entities exactly when they are part of formatting.\n"
+            "- Preserve placeholders exactly, such as {name}, {{value}}, %s, %d, $1, [[token]], <var>.\n"
             "- Translate only human-readable text content.\n"
-            "- Do not add explanations, markdown, numbering, or extra wrapper objects.\n\n"
+            "- Do not remove, reorder, merge, or split items.\n\n"
+            "Output rules:\n"
+            "- Return only a valid JSON array of strings.\n"
+            "- The output array must have exactly the same length and order as the input array.\n"
+            "- Do not add explanations, markdown, numbering, comments, or wrapper objects.\n"
+            "- Escape quotes and special characters correctly so the result is valid JSON.\n\n"
+            "Quality check before answering:\n"
+            "- Check that the translation is fluent and understandable.\n"
+            "- Check that no HTML, attributes, placeholders, or array items were changed incorrectly.\n\n"
             f"Input JSON array:\n{payload}"
         )
 
@@ -85,10 +119,16 @@ class GeminiTranslator:
             raise GeminiTranslateError("Gemini returned an unexpected translation payload.")
         return [str(item) for item in parsed]
 
-    def _send_request(self, texts: list[str], source_language: str, target_language: str) -> list[str]:
+    def _send_request(
+        self,
+        texts: list[str],
+        source_language: str,
+        target_language: str,
+        previous_context: str | None = None,
+    ) -> list[str]:
         from google.genai import types
 
-        prompt = self._build_prompt(texts, source_language, target_language)
+        prompt = self._build_prompt(texts, source_language, target_language, previous_context=previous_context)
         response = self.client.models.generate_content(
             model=self.model,
             contents=prompt,
@@ -127,14 +167,25 @@ class GeminiTranslator:
             ]
         )
 
-    def translate_batch(self, texts: list[str], source_language: str, target_language: str) -> list[str]:
+    def translate_batch(
+        self,
+        texts: list[str],
+        source_language: str,
+        target_language: str,
+        previous_context: str | None = None,
+    ) -> list[str]:
         if not texts:
             return []
         last_error: Exception | None = None
         for attempt in range(settings.gemini_retries):
             try:
                 self._log(f"Gemini request start: {len(texts)} texts, attempt {attempt + 1}/{settings.gemini_retries}")
-                translated = self._send_request(texts, source_language, target_language)
+                translated = self._send_request(
+                    texts,
+                    source_language,
+                    target_language,
+                    previous_context=previous_context,
+                )
                 self._log(f"Gemini request complete: {len(texts)} texts")
                 return translated
             except Exception as exc:
@@ -147,8 +198,18 @@ class GeminiTranslator:
                 ):
                     midpoint = max(1, len(texts) // 2)
                     self._log(f"Splitting Gemini batch of {len(texts)} texts into {midpoint} and {len(texts) - midpoint}")
-                    left = self.translate_batch(texts[:midpoint], source_language, target_language)
-                    right = self.translate_batch(texts[midpoint:], source_language, target_language)
+                    left = self.translate_batch(
+                        texts[:midpoint],
+                        source_language,
+                        target_language,
+                        previous_context=previous_context,
+                    )
+                    right = self.translate_batch(
+                        texts[midpoint:],
+                        source_language,
+                        target_language,
+                        previous_context=previous_context,
+                    )
                     return left + right
                 if attempt == settings.gemini_retries - 1:
                     break
