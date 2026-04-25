@@ -1,6 +1,12 @@
 # EPUB Translate
 
-EPUB Translate is a backend-first web app for turning English EPUB books into Serbian Latin while keeping the original EPUB structure as intact as possible.
+EPUB Translate is a backend-first web app for translating EPUBs into different languages.
+
+Even tho it was originally built to support translation from English to Serbian (Latin), the app supports all languages (some may require minor tweaks).
+
+I recommend using the Gemini API for translation instead of LibreTranslate to achieve the best results.
+
+LibreTranslate was implemented as an option to keep translation free and self-hosted, but the translation quality is not as high.
 
 The app is built for a simple flow:
 
@@ -13,7 +19,7 @@ This repository includes the web app, background worker, database migrations, Do
 
 ## What It Does
 
-The goal of the project is not a flashy frontend. The main focus is reliable EPUB translation.
+The goal of the project is to translate EPUBs while maintaining narrative flow and tone, adapting the text so it sounds natural in the selected language. The main focus is reliable EPUB translation.
 
 Out of the box, the app gives you:
 
@@ -97,10 +103,10 @@ Visit:
 
 Yes, this project can be run as prebuilt Docker images so users do not need the source tree to build the app image themselves.
 
-The app can use either LibreTranslate or Gemini 2.5 Flash:
+The app can use either LibreTranslate or Gemini 2.5 Flash Lite:
 
 - If LibreTranslate is reachable, LibreTranslate appears as an engine and the app shows the languages installed in that LibreTranslate instance.
-- If `GEMINI_API_KEY` is set, Gemini 2.5 Flash appears as an engine and users can type any source and target language name.
+- If `GEMINI_API_KEY` is set, Gemini 2.5 Flash Lite appears as an engine and users can type any source and target language name.
 - If only one engine is configured, only that engine is shown.
 - You can remove libretranslate from `docker-compose.yml` if you don't need it.
 To run everything without cloning this repository, create a new folder and add this `docker-compose.yml`:
@@ -210,12 +216,6 @@ If you add a new `.argosmodel` later, restart LibreTranslate so it can import it
 docker compose restart libretranslate
 ```
 
-LibreTranslate is optional. The app and worker can start without it, so for a Gemini-only stack use the included `docker-compose.gemini.yml` file:
-
-```bash
-docker compose -f docker-compose.gemini.yml up -d
-```
-
 For Gemini-only mode, set `GEMINI_API_KEY` directly in the compose file or export it in your shell before running `docker compose`.
 
 Start the stack:
@@ -233,12 +233,6 @@ docker compose exec app alembic upgrade head
 Open the app at:
 
 - `http://localhost:8000`
-
-If the repository or package is private, users must log in first with a GitHub token that has package read access:
-
-```bash
-echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
-```
 
 
 ## Environment Variables
@@ -280,24 +274,7 @@ You can protect terms like:
 - brand names
 - phrases you never want translated literally
 
-## Tests
-
-Run the test suite with:
-
-```bash
-python -m pytest -q
-```
-
-## Operational Notes
-
-- Free users share a global active-job pool.
-- There is no waitlist in v1.
-- Pro and admin users bypass that free-tier pool limit.
-- EPUB HTML is never rendered directly in the app UI.
-- DRM-protected books are out of scope.
-- Custom Argos `.argosmodel` files placed in `models/` are imported automatically by the LibreTranslate container and persist across restarts through the volume.
-
 ## In Plain English
 
-It is a self-hosted EPUB translation service. A user logs in, uploads an English EPUB, the app translates the book to Serbian Latin in the background, and the user downloads a translated EPUB when it is done.
+It is a self-hosted EPUB translation service. A user logs in, uploads an EPUB (in English or another language), the app translates the book into the selected language in the background, and the user downloads the translated EPUB once it is ready.
  

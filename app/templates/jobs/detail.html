@@ -5,28 +5,63 @@
   <p>Status: <strong>{{ job.status.value }}</strong></p>
   <p>Engine: <strong>{{ job.translator_provider }}</strong> | Languages: <strong>{{ job.source_language }} -> {{ job.target_language }}</strong></p>
   {% if job.error_message %}<p class="error">{{ job.error_message }}</p>{% endif %}
-  {% if job.progress %}
-    {% set percent = job.progress.get("percent", 0) %}
-    {% set translated = job.progress.get("segments_translated", 0) %}
-    {% set total = job.progress.get("segments_total", 0) %}
-    {% if job.status.value in ["extracting", "translating", "rebuilding", "completed"] and total %}
-      <div class="progress-card">
-        <div class="progress-row">
-          <strong>{{ percent }}%</strong>
-          <span>{{ translated }}/{{ total }} segments</span>
-        </div>
-        <div class="progress-bar" aria-label="Translation progress">
-          <div class="progress-fill" style="width: {{ percent }}%;"></div>
-        </div>
-        <p class="progress-meta">
-          {% if job.progress.get("batches_total") %}
-            Batches: {{ job.progress.get("batches_completed", 0) }}/{{ job.progress.get("batches_total") }}
-          {% endif %}
-        </p>
-      </div>
+  {% set active_statuses = ["uploaded", "validating", "queued", "extracting", "translating", "rebuilding", "completed"] %}
+  {% if job.status.value in active_statuses %}
+    {% set progress = job.progress or {} %}
+    {% set percent = progress.get("percent") %}
+    {% set translated = progress.get("segments_translated", 0) %}
+    {% set total = progress.get("segments_total", 0) %}
+    {% set stage = progress.get("stage", job.status.value) %}
+    {% if stage == "uploaded" %}
+      {% set stage_label = "Upload received" %}
+      {% set stage_detail = "Preparing the translation job." %}
+    {% elif stage == "validating" %}
+      {% set stage_label = "Checking EPUB" %}
+      {% set stage_detail = "Validating the uploaded file." %}
+    {% elif stage == "queued" %}
+      {% set stage_label = "Queued" %}
+      {% set stage_detail = "Waiting for the worker to start." %}
+    {% elif stage == "extracting" %}
+      {% set stage_label = "Reading EPUB" %}
+      {% set stage_detail = "Extracting translatable text." %}
+    {% elif stage == "translating" %}
+      {% set stage_label = "Translating" %}
+      {% set stage_detail = "Translating extracted text." %}
+    {% elif stage == "rebuilding" %}
+      {% set stage_label = "Rebuilding EPUB" %}
+      {% set stage_detail = "Writing the translated book." %}
+    {% elif stage == "completed" %}
+      {% set stage_label = "Completed" %}
+      {% set stage_detail = "Your translated EPUB is ready." %}
+    {% else %}
+      {% set stage_label = job.status.value %}
+      {% set stage_detail = "Working on your translation." %}
     {% endif %}
-    {% if job.progress.get("detail") %}
-      <pre class="progress">{{ job.progress.get("detail") }}</pre>
+    <div class="progress-card">
+      <div class="progress-row">
+        <strong>{{ stage_label }}</strong>
+        {% if percent is not none %}
+          <span>{{ percent }}%</span>
+        {% else %}
+          <span>{{ stage_detail }}</span>
+        {% endif %}
+      </div>
+      <div class="progress-bar {% if percent is none %}progress-bar-indeterminate{% endif %}" aria-label="Translation progress">
+        <div class="progress-fill" style="width: {{ percent if percent is not none else 35 }}%;"></div>
+      </div>
+      <p class="progress-meta">
+        {% if total %}
+          {{ translated }}/{{ total }} segments
+          {% if progress.get("batches_total") %}
+            | Batches: {{ progress.get("batches_completed", 0) }}/{{ progress.get("batches_total") }}
+          {% endif %}
+        {% else %}
+          {{ stage_detail }}
+        {% endif %}
+      </p>
+    </div>
+    {% if progress.get("detail") %}
+      <pre class="progress">{{ progress.get("detail") }}</pre>
     {% endif %}
   {% endif %}
   {% if job.status.value == "completed" %}

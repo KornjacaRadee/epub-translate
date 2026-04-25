@@ -36,3 +36,9 @@ def test_authenticated_user_can_create_job(client, db_session, monkeypatch, tmp_
     assert response.status_code == 303
     assert response.headers["location"].startswith("/jobs/")
     assert queued
+
+    detail = client.get(response.headers["location"])
+    assert detail.status_code == 200
+    assert "Upload received" in detail.text
+    assert "Preparing the translation job." in detail.text
+    assert "progress-bar-indeterminate" in detail.text

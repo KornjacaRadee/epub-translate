@@ -38,6 +38,6 @@ def test_gemini_prompt_includes_previous_context():
         previous_context="Previous sentence for meaning.",
     )
 
-    assert "Context from previous passage, for meaning only." in prompt
-    assert "Do not translate it unless it appears in the input array:" in prompt
+    assert "Previous context for continuity only:" in prompt
+    assert "Do not translate, summarize, copy, or include this context" in prompt
     assert "Previous sentence for meaning." in prompt
