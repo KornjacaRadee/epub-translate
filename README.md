@@ -60,30 +60,31 @@ The worker runs this as resumable steps, so bigger books are no longer forced th
 - EbookLib + BeautifulSoup
 - Docker Compose
 
-## Local Development
+## License
 
-### 1. Optional: create your env file
+This project is open source under the MIT License. See [LICENSE](LICENSE).
 
-Copy `.env.example` to `.env` only if you want to override defaults outside Docker Compose.
+## Local Self-Hosting
 
-For local Docker use, the important optional overrides are:
+### 1. Edit the local compose file
 
-- `SECRET_KEY`
-- `DEFAULT_ADMIN_EMAIL`
-- `DEFAULT_ADMIN_PASSWORD`
-- `GEMINI_API_KEY`
+Open `docker-compose.local.yml` and set at least a real `SECRET_KEY`, `DEFAULT_ADMIN_EMAIL`, and `DEFAULT_ADMIN_PASSWORD` directly in the `environment:` blocks. Add `GEMINI_API_KEY` if you want Gemini translations.
 
 ### 2. Start the stack
 
 ```bash
-docker compose up --build -d
+docker compose -f docker-compose.local.yml up -d
 ```
 
-### 3. Run database migrations
+The local compose file uses `ENVIRONMENT=local`, so credits, Paddle checkout, pricing, and payment pages are disabled. Database migrations run automatically when the app container starts.
+
+### 3. Optional: start LibreTranslate too
 
 ```bash
-docker compose exec app alembic upgrade head
+docker compose -f docker-compose.local.yml --profile libretranslate up -d
 ```
+
+LibreTranslate is optional. The default local stack does not start it. If you use the profile, set `ENABLE_LIBRETRANSLATE` to `"true"` in the app and worker environment blocks.
 
 ### 4. Open the app
 
@@ -99,17 +100,18 @@ Visit:
 4. Open the job page and watch progress
 5. Download the translated EPUB when the job completes
 
-## Pull-And-Run Deployment
+## Pull-And-Run Local Deployment
 
-Yes, this project can be run as prebuilt Docker images so users do not need the source tree to build the app image themselves.
+Yes, this project can be run with prebuilt Docker images, so users do not need the source tree to build the app image themselves.
 
 The app can use either LibreTranslate or Gemini 2.5 Flash Lite:
 
-- If LibreTranslate is reachable, LibreTranslate appears as an engine and the app shows the languages installed in that LibreTranslate instance.
 - If `GEMINI_API_KEY` is set, Gemini 2.5 Flash Lite appears as an engine and users can type any source and target language name.
+- If LibreTranslate is enabled and reachable, LibreTranslate appears as an engine and the app shows the languages installed in that LibreTranslate instance.
 - If only one engine is configured, only that engine is shown.
-- You can remove libretranslate from `docker-compose.yml` if you don't need it.
-To run everything without cloning this repository, create a new folder and add this `docker-compose.yml`:
+- LibreTranslate is optional and runs behind a Docker Compose profile.
+
+To run without cloning this repository, create a new folder and add this `docker-compose.yml`:
 
 ```yaml
 services:
@@ -118,11 +120,16 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
       SECRET_KEY: replace-with-a-long-random-secret
+      ENVIRONMENT: local
       DEFAULT_ADMIN_EMAIL: admin@example.com
       DEFAULT_ADMIN_PASSWORD: change-this-password
-      ENABLE_LIBRETRANSLATE: "true"
+      ENABLE_LIBRETRANSLATE: "false"
       LIBRETRANSLATE_URL: http://libretranslate:5000
+      LIBRETRANSLATE_API_KEY: ""
       GEMINI_API_KEY: ""
+      GEMINI_MODEL: gemini-2.5-flash-lite
+      GEMINI_BATCH_CHAR_BUDGET: "24000"
+      RUN_MIGRATIONS: "true"
     ports:
       - "8000:8000"
     depends_on:
@@ -139,19 +146,20 @@ services:
     command: celery -A app.tasks.celery_worker worker --loglevel=INFO
     environment:
       SECRET_KEY: replace-with-a-long-random-secret
+      ENVIRONMENT: local
       DEFAULT_ADMIN_EMAIL: admin@example.com
       DEFAULT_ADMIN_PASSWORD: change-this-password
-      ENABLE_LIBRETRANSLATE: "true"
+      ENABLE_LIBRETRANSLATE: "false"
       LIBRETRANSLATE_URL: http://libretranslate:5000
+      LIBRETRANSLATE_API_KEY: ""
       GEMINI_API_KEY: ""
+      GEMINI_MODEL: gemini-2.5-flash-lite
+      GEMINI_BATCH_CHAR_BUDGET: "24000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
-    volumes:
-      - ./uploads:/app/uploads
-      - ./results:/app/results
 
   redis:
     image: redis:7-alpine
@@ -172,6 +180,7 @@ services:
 
   libretranslate:
     image: ghcr.io/kornjacaradee/epub-translate-libretranslate:latest
+    profiles: ["libretranslate"]
     restart: unless-stopped
     ports:
       - "5000:5000"
@@ -193,7 +202,7 @@ volumes:
   libretranslate_data:
 ```
 
-Create the folders used by the compose file:
+Create the folders used by the compose file if you want them present before first boot:
 
 ```bash
 mkdir uploads results models
@@ -216,7 +225,7 @@ If you add a new `.argosmodel` later, restart LibreTranslate so it can import it
 docker compose restart libretranslate
 ```
 
-For Gemini-only mode, set `GEMINI_API_KEY` directly in the compose file or export it in your shell before running `docker compose`.
+For Gemini-only mode, set `GEMINI_API_KEY` in the compose file and leave `ENABLE_LIBRETRANSLATE=false`.
 
 Start the stack:
 
@@ -224,11 +233,13 @@ Start the stack:
 docker compose up -d
 ```
 
-Run database migrations once after the containers are up:
+To start the optional LibreTranslate service too:
 
 ```bash
-docker compose exec app alembic upgrade head
+docker compose --profile libretranslate up -d
 ```
+
+Also set `ENABLE_LIBRETRANSLATE=true` in the app and worker environment blocks.
 
 Open the app at:
 
@@ -237,7 +248,7 @@ Open the app at:
 
 ## Environment Variables
 
-`.env` support is still there, but it is optional. The app reads normal process environment variables, so Docker Compose can own the config directly.
+`.env` support is still there, but it is optional. For the simplest local setup, put values directly in `docker-compose.local.yml`. The app reads normal process environment variables, so Docker Compose can own the config directly.
 
 Most settings already have code defaults. The ones users are most likely to override are:
 

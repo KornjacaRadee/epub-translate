@@ -13,16 +13,14 @@
 <section class="self-host-grid">
   <article class="panel content-prose">
     <h2>Fastest local setup</h2>
-    <p>Use the dedicated local compose file for self-hosting. It runs in ENVIRONMENT=local, so credits, Paddle checkout, pricing, and payment pages stay disabled. Database migrations run automatically when the app container starts.</p>
-    <pre class="code-block"><code>cp .env.local.example .env
-docker compose -f docker-compose.local.yml up -d</code></pre>
+    <p>Use the dedicated local compose file for self-hosting. Put your values directly in the compose environment blocks. It runs in ENVIRONMENT=local, so credits, Paddle checkout, pricing, and payment pages stay disabled. Database migrations run automatically when the app container starts.</p>
+    <pre class="code-block"><code>docker compose -f docker-compose.local.yml up -d</code></pre>
 
     <h2>Minimum services</h2>
-    <p>The web app handles pages and uploads. The worker performs long translation jobs. Celery beat is included so the same stack also works if you later switch to hosted billing mode.</p>
+    <p>The web app handles pages and uploads. The worker performs long translation jobs. PostgreSQL stores app data and Redis is the task broker.</p>
     <ul class="check-list">
       <li>App: FastAPI and Jinja pages on port 8000.</li>
       <li>Worker: background EPUB extraction, translation, and rebuild tasks.</li>
-      <li>Beat: scheduled maintenance tasks.</li>
       <li>PostgreSQL and Redis: persistent database and task broker.</li>
     </ul>
 
@@ -32,9 +30,8 @@ docker compose -f docker-compose.local.yml up -d</code></pre>
 ENABLE_LIBRETRANSLATE=false
 GEMINI_API_KEY=your-gemini-key
 
-# To start optional LibreTranslate too, set this in .env
-ENABLE_LIBRETRANSLATE=true
-
+# To start optional LibreTranslate too, set ENABLE_LIBRETRANSLATE
+# to "true" in the app and worker compose environment blocks.
 docker compose -f docker-compose.local.yml --profile libretranslate up -d</code></pre>
     <div class="alert alert-info" role="status">
       <span class="alert-icon" aria-hidden="true">i</span>
@@ -62,7 +59,7 @@ docker compose -f docker-compose.local.yml --profile libretranslate up -d</code>
 <section class="panel content-prose">
   <p class="eyebrow">Docker Compose</p>
   <h2>Local compose file</h2>
-  <p>This is the local self-hosting shape. The real repository includes it as docker-compose.local.yml. It has no Paddle variables, starts without LibreTranslate by default, and uses a profile when you want LibreTranslate.</p>
+    <p>This is the local self-hosting shape. The real repository includes it as docker-compose.local.yml. It has no Paddle variables, starts without LibreTranslate by default, and uses a profile when you want LibreTranslate.</p>
   <pre class="code-block compose-block"><code>services:
   app:
     image: ghcr.io/kornjacaradee/epub-translate:latest
@@ -76,7 +73,7 @@ docker compose -f docker-compose.local.yml --profile libretranslate up -d</code>
       LIBRETRANSLATE_URL: http://libretranslate:5000
       GEMINI_API_KEY: ""
       GEMINI_MODEL: gemini-2.5-flash-lite
-      GEMINI_BATCH_CHAR_BUDGET: 24000
+      GEMINI_BATCH_CHAR_BUDGET: "24000"
       RUN_MIGRATIONS: "true"
     ports:
       - "8000:8000"
@@ -101,7 +98,7 @@ docker compose -f docker-compose.local.yml --profile libretranslate up -d</code>
       LIBRETRANSLATE_URL: http://libretranslate:5000
       GEMINI_API_KEY: ""
       GEMINI_MODEL: gemini-2.5-flash-lite
-      GEMINI_BATCH_CHAR_BUDGET: 24000
+      GEMINI_BATCH_CHAR_BUDGET: "24000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,25 +107,6 @@ docker compose -f docker-compose.local.yml --profile libretranslate up -d</code>
     volumes:
       - ./uploads:/app/uploads
       - ./results:/app/results
-
-  beat:
-    image: ghcr.io/kornjacaradee/epub-translate:latest
-    command: celery -A app.tasks.celery_worker beat --loglevel=INFO
-    environment:
-      SECRET_KEY: replace-with-a-long-random-secret
-      ENVIRONMENT: local
-      DEFAULT_ADMIN_EMAIL: admin@example.com
-      DEFAULT_ADMIN_PASSWORD: change-this-password
-      ENABLE_LIBRETRANSLATE: "false"
-      LIBRETRANSLATE_URL: http://libretranslate:5000
-      GEMINI_API_KEY: ""
-      GEMINI_MODEL: gemini-2.5-flash-lite
-      GEMINI_BATCH_CHAR_BUDGET: 24000
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
 
   redis:
     image: redis:7-alpine

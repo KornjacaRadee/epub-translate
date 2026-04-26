@@ -3,6 +3,7 @@ name = "epub-translate"
 version = "0.1.0"
 description = "Self-hosted EPUB translation web application"
 requires-python = ">=3.12"
+license = "MIT"
 dependencies = [
   "alembic==1.14.1",
   "argon2-cffi==23.1.0",
