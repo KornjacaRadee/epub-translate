@@ -1,11 +1,195 @@
 {% extends "base.html" %}
+{% block title %}EPUB Translate - translate books without losing the book{% endblock %}
 {% block content %}
-<section class="panel hero">
-  <h1>Translate English EPUBs to Serbian Latin</h1>
-  <p>Upload a book, track the job, and download a translated EPUB with structure and assets preserved.</p>
-  <div class="actions">
-    <a class="button" href="/register">Create account</a>
-    <a class="button secondary" href="/login">Login</a>
+<section class="hero" aria-labelledby="hero-title">
+  <div>
+    <p class="eyebrow">Open-source EPUB translation</p>
+    <h1 id="hero-title">Translate EPUB books while keeping the reading experience intact.</h1>
+    <p class="hero-copy">
+      Upload an EPUB, choose your language, and let EPUB Translate process the book in the background while preserving structure, images, links, navigation, and metadata as much as possible.
+    </p>
+    <div class="actions">
+      <a class="button" href="/register">Get started for free</a>
+      <a class="button secondary" href="/self-hosting">Self host</a>
+    </div>
+    <div class="hero-trust" aria-label="Product highlights">
+      <span class="pill">Gemini support</span>
+      <span class="pill">LibreTranslate optional</span>
+      <span class="pill">Credit based</span>
+      <span class="pill">Self-host friendly</span>
+    </div>
+  </div>
+
+  <div class="hero-visual" aria-label="EPUB Translate dashboard preview">
+    <div class="browser-bar" aria-hidden="true">
+      <span class="browser-dot"></span>
+      <span class="browser-dot"></span>
+      <span class="browser-dot"></span>
+    </div>
+    <div class="product-preview">
+      <div class="preview-top">
+        <div>
+          <p class="preview-title">Your translations</p>
+          <p class="preview-subtitle">10 credits per average book</p>
+        </div>
+        <span class="pill">42 credits</span>
+      </div>
+      <div class="preview-upload">
+        <strong>Upload EPUB</strong>
+        <span class="table-muted">Book file, engine, source, target</span>
+      </div>
+      <div class="preview-lines" aria-hidden="true">
+        <span class="preview-line"></span>
+        <span class="preview-line short"></span>
+      </div>
+      <div class="preview-job">
+        <div class="preview-job-row">
+          <strong>Translating chapter 12</strong>
+          <span class="status-dot" aria-hidden="true"></span>
+        </div>
+        <div class="progress-bar">
+          <span class="progress-fill preview-progress-72"></span>
+        </div>
+        <p class="preview-subtitle">Structure, images, links, and metadata stay with the book.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="features-title">
+  <div class="section-header">
+    <p class="eyebrow">Built for real EPUB workflows</p>
+    <h2 id="features-title">A focused translator for books, not loose text snippets.</h2>
+    <p>EPUB Translate keeps the workflow simple for hosted use and transparent for people who want to run it themselves.</p>
+  </div>
+  <div class="grid feature-grid">
+    <article class="feature-card">
+      <span class="feature-icon" aria-hidden="true">01</span>
+      <h3>EPUB preservation</h3>
+      <p>Preserves structure, styling, images, internal links, navigation, and metadata as much as possible.</p>
+    </article>
+    <article class="feature-card">
+      <span class="feature-icon" aria-hidden="true">02</span>
+      <h3>Background jobs</h3>
+      <p>Translation runs in the worker while you track progress and download the finished EPUB when ready.</p>
+    </article>
+    <article class="feature-card">
+      <span class="feature-icon" aria-hidden="true">03</span>
+      <h3>Gemini or LibreTranslate</h3>
+      <p>Use Gemini for natural language quality, or enable LibreTranslate for a local optional engine.</p>
+    </article>
+    <article class="feature-card">
+      <span class="feature-icon" aria-hidden="true">04</span>
+      <h3>Glossary friendly</h3>
+      <p>Designed around consistent terminology so names, recurring phrases, and domain terms can stay stable.</p>
+    </article>
+    <article class="feature-card">
+      <span class="feature-icon" aria-hidden="true">05</span>
+      <h3>Credit-based usage</h3>
+      <p>Credits make usage predictable. An average book currently costs 10 credits to translate.</p>
+    </article>
+    <article class="feature-card">
+      <span class="feature-icon" aria-hidden="true">06</span>
+      <h3>Self-hosted identity</h3>
+      <p>Run it with Docker Compose, bring your own API keys, and keep LibreTranslate completely optional.</p>
+    </article>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="workflow-title">
+  <div class="section-header">
+    <p class="eyebrow">How it works</p>
+    <h2 id="workflow-title">From upload to translated EPUB in four clear steps.</h2>
+  </div>
+  <div class="grid steps-grid">
+    <article class="step-card">
+      <span class="step-number">1</span>
+      <h3>Upload EPUB</h3>
+      <p>Select the book file you want to translate.</p>
+    </article>
+    <article class="step-card">
+      <span class="step-number">2</span>
+      <h3>Choose language</h3>
+      <p>Pick your engine, source language, and target language.</p>
+    </article>
+    <article class="step-card">
+      <span class="step-number">3</span>
+      <h3>Track progress</h3>
+      <p>The worker extracts, translates, and rebuilds the EPUB in the background.</p>
+    </article>
+    <article class="step-card">
+      <span class="step-number">4</span>
+      <h3>Download book</h3>
+      <p>Save the translated EPUB when the job completes.</p>
+    </article>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="pricing-title">
+  <div class="section-header">
+    <p class="eyebrow">Simple credit pricing</p>
+    <h2 id="pricing-title">Start free, then buy credits only when you need them.</h2>
+    <p>New accounts get 1 free credit. Credits do not expire for now, and an average book currently costs 10 credits.</p>
+  </div>
+  <div class="package-grid" aria-label="Credit packages">
+    <article class="package-card">
+      <div>
+        <span class="package-kicker">Starter</span>
+        <h3>10 credits</h3>
+        <p class="package-price">EUR 2.99</p>
+        <p class="package-description">Translate one average book and test the full EPUB workflow.</p>
+      </div>
+      <ul class="package-features">
+        <li>Good for first paid translation</li>
+        <li>Credits do not expire</li>
+        <li>Paddle secure checkout</li>
+      </ul>
+    </article>
+    <article class="package-card featured">
+      <span class="package-badge">Recommended</span>
+      <div>
+        <span class="package-kicker">Most readers</span>
+        <h3>50 credits</h3>
+        <p class="package-price">EUR 7.99</p>
+        <p class="package-description">The best balance for regular reading, experiments, and a small queue of books.</p>
+      </div>
+      <ul class="package-features">
+        <li>About 5 average books</li>
+        <li>Lower cost per credit</li>
+        <li>Best value for most users</li>
+      </ul>
+    </article>
+    <article class="package-card">
+      <div>
+        <span class="package-kicker">Power pack</span>
+        <h3>120 credits</h3>
+        <p class="package-price">EUR 14.99</p>
+        <p class="package-description">For bigger reading lists, testing multiple languages, or small teams.</p>
+      </div>
+      <ul class="package-features">
+        <li>About 12 average books</li>
+        <li>Lowest cost per credit</li>
+        <li>Built for heavier usage</li>
+      </ul>
+    </article>
+  </div>
+  <div class="pricing-action-row">
+    <div>
+      <strong>No subscription required.</strong>
+      <p>Buy credits when you need more translations. Dynamic book-length pricing can come later.</p>
+    </div>
+    <a class="button" href="/pricing">See pricing details</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="final-cta">
+    <div>
+      <p class="eyebrow">Ready when you are</p>
+      <h2>Translate your first EPUB with one focused workflow.</h2>
+      <p>Create an account, upload a book, and keep the EPUB experience intact for your readers.</p>
+    </div>
+    <a class="button" href="/register">Get started for free</a>
   </div>
 </section>
 {% endblock %}

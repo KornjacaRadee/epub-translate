@@ -11,7 +11,7 @@ from app.services.jobs import ensure_can_start_job, find_active_duplicate_job, m
 
 
 def test_free_tier_pool_limit_enforced(db_session):
-    free_user = User(email="free@example.com", password_hash="x", tier=UserTier.FREE)
+    free_user = User(email="free@example.com", password_hash="x", tier=UserTier.FREE, credit_balance=20)
     db_session.add(free_user)
     db_session.commit()
     db_session.refresh(free_user)
@@ -38,7 +38,7 @@ def test_free_tier_pool_limit_enforced(db_session):
 
 
 def test_pro_user_bypasses_free_tier_pool_limit(db_session):
-    pro_user = User(email="pro@example.com", password_hash="x", tier=UserTier.PRO)
+    pro_user = User(email="pro@example.com", password_hash="x", tier=UserTier.PRO, credit_balance=20)
     db_session.add(pro_user)
     db_session.commit()
     db_session.refresh(pro_user)
@@ -48,7 +48,7 @@ def test_pro_user_bypasses_free_tier_pool_limit(db_session):
 
 def test_stale_jobs_are_marked_failed_and_removed_from_active_pool(db_session, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("app.services.jobs.settings.stale_job_timeout_seconds", 60)
-    free_user = User(email="stale@example.com", password_hash="x", tier=UserTier.FREE)
+    free_user = User(email="stale@example.com", password_hash="x", tier=UserTier.FREE, credit_balance=20)
     db_session.add(free_user)
     db_session.commit()
     db_session.refresh(free_user)

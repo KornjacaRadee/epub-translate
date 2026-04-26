@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base import Base
-from app.models import app_setting, job, translation_cache, user
+from app.models import app_setting, credit_transaction, job, translation_cache, user
 
 
 config = context.config

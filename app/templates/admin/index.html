@@ -1,40 +1,81 @@
 {% extends "base.html" %}
+{% block title %}Admin - EPUB Translate{% endblock %}
 {% block content %}
+<section class="page-hero" aria-labelledby="admin-title">
+  <div>
+    <p class="eyebrow">Admin</p>
+    <h1 id="admin-title">Admin</h1>
+    <p>Recent users, recent jobs, and basic platform settings.</p>
+  </div>
+</section>
+
 <section class="panel">
-  <h1>Admin</h1>
-  <p>Recent users and jobs.</p>
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <div class="section-heading">
+    <div>
+      <h2>Free pool settings</h2>
+      <p>Controls how many free-tier active jobs can run at once.</p>
+    </div>
+  </div>
+  {% if error %}
+    <div class="alert alert-error" role="alert">
+      <span class="alert-icon" aria-hidden="true">!</span>
+      <p>{{ error }}</p>
+    </div>
+  {% endif %}
   <form method="post" action="/admin/settings/free-pool">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label>Global free active job limit</label>
-    <input type="number" name="free_pool_limit" min="1" value="{{ current_limit }}" required>
-    <button type="submit">Save limit</button>
+    <label class="field">
+      <span>Global free active job limit</span>
+      <input class="control" type="number" name="free_pool_limit" min="1" value="{{ current_limit }}" required>
+    </label>
+    <div class="submit-row">
+      <button type="submit">Save limit</button>
+    </div>
   </form>
 </section>
-<section class="panel">
-  <h2>Users</h2>
-  <table>
-    <thead>
-      <tr><th>Email</th><th>Tier</th><th>Created</th></tr>
-    </thead>
-    <tbody>
-      {% for item in users %}
-        <tr><td>{{ item.email }}</td><td>{{ item.tier.value }}</td><td>{{ item.created_at }}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+
+<section class="panel table-card">
+  <div class="section-heading">
+    <h2>Users</h2>
+  </div>
+  <div class="responsive-table">
+    <table>
+      <thead>
+        <tr><th>Email</th><th>Tier</th><th>Created</th></tr>
+      </thead>
+      <tbody>
+        {% for item in users %}
+          <tr>
+            <td data-label="Email">{{ item.email }}</td>
+            <td data-label="Tier"><span class="pill pill-muted">{{ item.tier.value }}</span></td>
+            <td data-label="Created">{{ item.created_at }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
-<section class="panel">
-  <h2>Jobs</h2>
-  <table>
-    <thead>
-      <tr><th>ID</th><th>User tier</th><th>Status</th><th>Book</th></tr>
-    </thead>
-    <tbody>
-      {% for item in jobs %}
-        <tr><td>{{ item.id }}</td><td>{{ item.user_tier.value }}</td><td>{{ item.status.value }}</td><td>{{ item.translated_title or item.title or item.original_filename }}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+
+<section class="panel table-card">
+  <div class="section-heading">
+    <h2>Jobs</h2>
+  </div>
+  <div class="responsive-table">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>User tier</th><th>Status</th><th>Book</th></tr>
+      </thead>
+      <tbody>
+        {% for item in jobs %}
+          <tr>
+            <td data-label="ID">{{ item.id }}</td>
+            <td data-label="User tier">{{ item.user_tier.value }}</td>
+            <td data-label="Status"><span class="status-badge status-{{ item.status.value }}">{{ item.status.value }}</span></td>
+            <td data-label="Book">{{ item.translated_title or item.title or item.original_filename }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 {% endblock %}

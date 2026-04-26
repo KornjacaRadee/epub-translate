@@ -1,10 +1,10 @@
 services:
   app:
-    build: .
+    image: ${APP_IMAGE:-ghcr.io/kornjacaradee/epub-translate:latest}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
       SECRET_KEY: ${SECRET_KEY:-replace-with-a-long-random-secret}
-      ENVIRONMENT: ${ENVIRONMENT:-local}
+      ENVIRONMENT: local
       DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@example.com}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-change-this-password}
       ENABLE_LIBRETRANSLATE: ${ENABLE_LIBRETRANSLATE:-false}
@@ -14,14 +14,6 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
       GEMINI_BATCH_CHAR_BUDGET: ${GEMINI_BATCH_CHAR_BUDGET:-24000}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
-      PADDLE_API_KEY: ${PADDLE_API_KEY:-}
-      PADDLE_WEBHOOK_SECRET: ${PADDLE_WEBHOOK_SECRET:-}
-      PADDLE_ENVIRONMENT: ${PADDLE_ENVIRONMENT:-sandbox}
-      PADDLE_PRICE_ID_10_CREDITS: ${PADDLE_PRICE_ID_10_CREDITS:-}
-      PADDLE_PRICE_ID_50_CREDITS: ${PADDLE_PRICE_ID_50_CREDITS:-}
-      PADDLE_PRICE_ID_120_CREDITS: ${PADDLE_PRICE_ID_120_CREDITS:-}
-      TRANSLATION_JOB_CREDIT_COST: ${TRANSLATION_JOB_CREDIT_COST:-10}
-      REFUND_DELAY_MINUTES: ${REFUND_DELAY_MINUTES:-10}
     ports:
       - "8000:8000"
     depends_on:
@@ -34,11 +26,11 @@ services:
       - ./results:/app/results
 
   worker:
-    build: .
+    image: ${APP_IMAGE:-ghcr.io/kornjacaradee/epub-translate:latest}
     command: celery -A app.tasks.celery_worker worker --loglevel=INFO
     environment:
       SECRET_KEY: ${SECRET_KEY:-replace-with-a-long-random-secret}
-      ENVIRONMENT: ${ENVIRONMENT:-local}
+      ENVIRONMENT: local
       DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@example.com}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-change-this-password}
       ENABLE_LIBRETRANSLATE: ${ENABLE_LIBRETRANSLATE:-false}
@@ -47,14 +39,6 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
       GEMINI_BATCH_CHAR_BUDGET: ${GEMINI_BATCH_CHAR_BUDGET:-24000}
-      PADDLE_API_KEY: ${PADDLE_API_KEY:-}
-      PADDLE_WEBHOOK_SECRET: ${PADDLE_WEBHOOK_SECRET:-}
-      PADDLE_ENVIRONMENT: ${PADDLE_ENVIRONMENT:-sandbox}
-      PADDLE_PRICE_ID_10_CREDITS: ${PADDLE_PRICE_ID_10_CREDITS:-}
-      PADDLE_PRICE_ID_50_CREDITS: ${PADDLE_PRICE_ID_50_CREDITS:-}
-      PADDLE_PRICE_ID_120_CREDITS: ${PADDLE_PRICE_ID_120_CREDITS:-}
-      TRANSLATION_JOB_CREDIT_COST: ${TRANSLATION_JOB_CREDIT_COST:-10}
-      REFUND_DELAY_MINUTES: ${REFUND_DELAY_MINUTES:-10}
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,11 +49,11 @@ services:
       - ./results:/app/results
 
   beat:
-    build: .
+    image: ${APP_IMAGE:-ghcr.io/kornjacaradee/epub-translate:latest}
     command: celery -A app.tasks.celery_worker beat --loglevel=INFO
     environment:
       SECRET_KEY: ${SECRET_KEY:-replace-with-a-long-random-secret}
-      ENVIRONMENT: ${ENVIRONMENT:-local}
+      ENVIRONMENT: local
       DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@example.com}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-change-this-password}
       ENABLE_LIBRETRANSLATE: ${ENABLE_LIBRETRANSLATE:-false}
@@ -78,14 +62,6 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
       GEMINI_BATCH_CHAR_BUDGET: ${GEMINI_BATCH_CHAR_BUDGET:-24000}
-      PADDLE_API_KEY: ${PADDLE_API_KEY:-}
-      PADDLE_WEBHOOK_SECRET: ${PADDLE_WEBHOOK_SECRET:-}
-      PADDLE_ENVIRONMENT: ${PADDLE_ENVIRONMENT:-sandbox}
-      PADDLE_PRICE_ID_10_CREDITS: ${PADDLE_PRICE_ID_10_CREDITS:-}
-      PADDLE_PRICE_ID_50_CREDITS: ${PADDLE_PRICE_ID_50_CREDITS:-}
-      PADDLE_PRICE_ID_120_CREDITS: ${PADDLE_PRICE_ID_120_CREDITS:-}
-      TRANSLATION_JOB_CREDIT_COST: ${TRANSLATION_JOB_CREDIT_COST:-10}
-      REFUND_DELAY_MINUTES: ${REFUND_DELAY_MINUTES:-10}
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,9 +86,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   libretranslate:
-    build:
-      context: .
-      dockerfile: docker/libretranslate/Dockerfile
+    image: ${LIBRETRANSLATE_IMAGE:-ghcr.io/kornjacaradee/epub-translate-libretranslate:latest}
     profiles: ["libretranslate"]
     restart: unless-stopped
     ports:

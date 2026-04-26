@@ -6,6 +6,7 @@ import uuid
 from app.db.session import SessionLocal
 from app.models.job import JobStatus
 from app.tasks.celery_app import celery_app
+from app.services.credits import find_refundable_failed_jobs, refund_failed_job
 from app.services.checkpoints import checkpoint_exists, delete_checkpoint, load_checkpoint, save_checkpoint
 from app.services.filenames import translated_filename_from_title
 from app.services.jobs import get_job_by_id, update_job_status
@@ -118,6 +119,27 @@ def extract_job(job_id: str) -> None:
                 error_message=detail if detail else "Translation failed. Please try again later.",
                 progress=merge_progress(JobStatus.FAILED.value, current.progress, detail=detail),
             )
+    finally:
+        db.close()
+
+
+@celery_app.task(name="app.tasks.worker.process_pending_credit_refunds")
+def process_pending_credit_refunds() -> int:
+    db = SessionLocal()
+    refunded = 0
+    try:
+        for job in find_refundable_failed_jobs(db):
+            try:
+                transaction = refund_failed_job(db, job)
+                if transaction is not None:
+                    db.commit()
+                    refunded += 1
+                else:
+                    db.rollback()
+            except Exception:
+                db.rollback()
+                logger.exception("Failed to process credit refund for job %s", job.id)
+        return refunded
     finally:
         db.close()
 

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Payment pending - EPUB Translate{% endblock %}
+{% block content %}
+<section class="centered-page" aria-labelledby="pending-title">
+  <div class="panel auth-card">
+    <div class="pending-visual" aria-hidden="true">...</div>
+    <p class="eyebrow">Payment pending</p>
+    <h1 id="pending-title">Payment pending</h1>
+    <p><strong>Your payment is being confirmed.</strong></p>
+    <p>Credits are usually added shortly after Paddle confirms the payment.</p>
+    <div class="alert alert-info" role="status">
+      <span class="alert-icon" aria-hidden="true">i</span>
+      <p>If your credits do not appear immediately, refresh the page in a moment.</p>
+    </div>
+    <a class="button" href="/jobs">Back to dashboard</a>
+  </div>
+</section>
+{% endblock %}

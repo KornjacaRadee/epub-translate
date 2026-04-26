@@ -3,32 +3,66 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title if title else "EPUB Translate" }}</title>
+  <title>{% block title %}{{ title if title else "EPUB Translate" }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
-  <header class="site-header">
-    <div class="wrap">
-      <a class="brand" href="/">EPUB Translate</a>
-      <nav>
-        {% if user %}
-          <a href="/jobs">Jobs</a>
-          {% if user.tier.value == "admin" %}
-            <a href="/admin">Admin</a>
+  <div class="page-shell">
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="/">
+          <span>EPUB Translate</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary navigation">
+          {% if user is defined and user %}
+            <a class="nav-link" href="/jobs">Dashboard</a>
+            {% if credits_enabled %}
+              <a class="nav-link" href="/billing">Buy credits</a>
+              <a class="nav-link" href="/pricing">Pricing</a>
+              <a class="nav-link" href="/self-hosting">Self host</a>
+              <span class="nav-balance" aria-label="Credit balance">{{ user.credit_balance }} credits</span>
+            {% endif %}
+            {% if user.tier.value == "admin" %}
+              <a class="nav-link" href="/admin">Admin</a>
+            {% endif %}
+            <form action="/logout" method="post" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="button ghost" type="submit">Logout</button>
+            </form>
+          {% else %}
+            {% if credits_enabled %}
+              <a class="nav-link" href="/pricing">Pricing</a>
+              <a class="nav-link" href="/self-hosting">Self host</a>
+              <a class="nav-link" href="/login">Login</a>
+              <a class="button" href="/register">Get started for free</a>
+            {% else %}
+              <a class="button" href="/login">Login</a>
+            {% endif %}
           {% endif %}
-          <form action="/logout" method="post" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit">Logout</button>
-          </form>
-        {% else %}
-          <a href="/login">Login</a>
-          <a href="/register">Register</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="wrap">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <p class="footer-copy">EPUB Translate is built for readers, small teams, and self-hosters.</p>
+        {% if credits_enabled %}
+          <nav class="footer-links" aria-label="Footer navigation">
+            <a href="/pricing">Pricing</a>
+            <a href="/self-hosting">Self host</a>
+            <a href="/terms-and-conditions">Terms</a>
+            <a href="/privacy-policy">Privacy</a>
+            <a href="/refund-policy">Refund policy</a>
+          </nav>
         {% endif %}
-      </nav>
-    </div>
-  </header>
-  <main class="wrap">
-    {% block content %}{% endblock %}
-  </main>
+      </div>
+    </footer>
+  </div>
 </body>
 </html>

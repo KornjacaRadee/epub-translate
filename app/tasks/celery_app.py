@@ -12,4 +12,10 @@ celery_app.conf.update(
     result_serializer="json",
     task_time_limit=settings.celery_task_time_limit,
     task_soft_time_limit=settings.celery_task_soft_time_limit,
+    beat_schedule={
+        "process-pending-credit-refunds": {
+            "task": "app.tasks.worker.process_pending_credit_refunds",
+            "schedule": 60.0,
+        },
+    },
 )

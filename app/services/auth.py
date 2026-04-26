@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
 from app.models.user import User, UserTier
+from app.services.credits import credits_enabled, grant_signup_credit
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
@@ -14,6 +15,9 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 def create_user(db: Session, email: str, password: str, tier: UserTier = UserTier.FREE) -> User:
     user = User(email=email.lower().strip(), password_hash=hash_password(password), tier=tier)
     db.add(user)
+    db.flush()
+    if credits_enabled():
+        grant_signup_credit(db, user)
     db.commit()
     db.refresh(user)
     return user

@@ -37,6 +37,8 @@ class Job(Base):
     translator_provider: Mapped[str] = mapped_column(String(32), default="libretranslate")
     source_language: Mapped[str] = mapped_column(String(100), default="en")
     target_language: Mapped[str] = mapped_column(String(100), default="sr")
+    credits_charged: Mapped[int] = mapped_column(Integer(), default=0)
+    credit_spend_transaction_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=True)
     title: Mapped[str] = mapped_column(String(512), nullable=True)
     translated_title: Mapped[str] = mapped_column(String(512), nullable=True)
     error_message: Mapped[str] = mapped_column(Text(), nullable=True)
@@ -44,5 +46,7 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    refunded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="jobs")

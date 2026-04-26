@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Buy credits - EPUB Translate{% endblock %}
+{% block content %}
+<section class="page-hero" aria-labelledby="billing-title">
+  <div>
+    <p class="eyebrow">Upgrade account</p>
+    <h1 id="billing-title">Buy credits</h1>
+    <p>Credits power translation jobs. They do not expire for now, and an average book currently costs {{ required_credits }} credits.</p>
+  </div>
+  <span class="pill">{{ user.credit_balance }} credits available</span>
+</section>
+
+<section class="panel pricing-banner">
+  <div>
+    <p class="eyebrow">Recommended package</p>
+    <h2>Most readers start with 50 credits.</h2>
+    <p>It covers about 5 average books today, keeps the price per credit lower, and gives you room to test language settings without buying again immediately.</p>
+  </div>
+  <a class="button secondary" href="/pricing">Compare packages</a>
+</section>
+
+{% if error %}
+  <div class="alert alert-error" role="alert">
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <p><span class="alert-title">Checkout could not start</span>{{ error }}</p>
+  </div>
+{% endif %}
+
+<section class="package-grid" aria-label="Credit packages">
+  {% for package in packages %}
+    <article class="package-card {% if package.key == 'credits_50' %}featured{% endif %}">
+      {% if package.key == 'credits_50' %}
+        <span class="package-badge">Recommended</span>
+      {% endif %}
+      <div>
+        <span class="package-kicker">
+          {% if package.key == 'credits_10' %}
+            Starter
+          {% elif package.key == 'credits_50' %}
+            Most readers
+          {% else %}
+            Power pack
+          {% endif %}
+        </span>
+        <h2>{{ package.credits }} credits</h2>
+        <p class="package-price">EUR {{ package.price_label }}</p>
+        <p class="package-description">
+          {% if package.key == 'credits_10' %}
+            Enough for one average translation job and a clean first test.
+          {% elif package.key == 'credits_50' %}
+            Best fit for regular reading, experiments, and a small book queue.
+          {% else %}
+            Built for larger reading lists, multiple languages, and small teams.
+          {% endif %}
+        </p>
+      </div>
+      <ul class="package-features">
+        {% if package.key == 'credits_10' %}
+          <li>About 1 average book</li>
+          <li>Smallest upfront spend</li>
+          <li>Credits do not expire</li>
+        {% elif package.key == 'credits_50' %}
+          <li>About 5 average books</li>
+          <li>Lower cost per credit</li>
+          <li>Best value for most users</li>
+        {% else %}
+          <li>About 12 average books</li>
+          <li>Lowest cost per credit</li>
+          <li>Great for frequent translation</li>
+        {% endif %}
+      </ul>
+      <form action="/billing/checkout" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="package_key" value="{{ package.key }}">
+        <button type="submit">Buy {{ package.credits }} credits</button>
+      </form>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="billing-notes" aria-label="Billing notes">
+  <div class="mini-note"><strong>{{ required_credits }} credits</strong><br>Average book cost today.</div>
+  <div class="mini-note"><strong>No expiry</strong><br>Credits stay on your account for now.</div>
+  <div class="mini-note"><strong>Paddle checkout</strong><br>Payments are handled securely by Paddle.</div>
+</section>
+
+<section class="panel">
+  <div class="section-heading">
+    <div>
+      <h2>What happens after checkout?</h2>
+      <p>Paddle confirms the payment by webhook. When confirmation arrives, your credit balance updates automatically.</p>
+    </div>
+    <a class="button secondary" href="/billing/payment-pending">View pending page</a>
+  </div>
+  <p class="progress-meta">Package keys are submitted from the browser. Credit amounts and Paddle price IDs stay mapped on the backend.</p>
+</section>
+{% endblock %}

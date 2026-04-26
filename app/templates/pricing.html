@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Pricing - EPUB Translate{% endblock %}
+{% block content %}
+<section class="page-hero pricing-hero" aria-labelledby="pricing-page-title">
+  <div>
+    <p class="eyebrow">Pricing</p>
+    <h1 id="pricing-page-title">Simple credits for book translation.</h1>
+    <p>Start with a free account, then buy credits when you are ready to translate full EPUB books. No subscription is required for now.</p>
+    <div class="actions">
+      {% if user is defined and user %}
+        <a class="button" href="/billing">Buy credits</a>
+      {% else %}
+        <a class="button" href="/register">Get started for free</a>
+      {% endif %}
+      <a class="button secondary" href="/self-hosting">Self host</a>
+    </div>
+  </div>
+  <aside class="panel pricing-summary" aria-label="Pricing summary">
+    <span class="pill">1 free signup credit</span>
+    <h2>{{ required_credits }} credits per average book</h2>
+    <p>For now every translation job costs {{ required_credits }} credits. Credits do not expire. Dynamic book-length pricing is planned later.</p>
+  </aside>
+</section>
+
+<section class="package-grid" aria-label="Credit packages">
+  {% for package in packages %}
+    <article class="package-card {% if package.key == 'credits_50' %}featured{% endif %}">
+      {% if package.key == 'credits_50' %}
+        <span class="package-badge">Recommended</span>
+      {% endif %}
+      <div>
+        <span class="package-kicker">
+          {% if package.key == 'credits_10' %}
+            Starter
+          {% elif package.key == 'credits_50' %}
+            Most readers
+          {% else %}
+            Power pack
+          {% endif %}
+        </span>
+        <h2>{{ package.credits }} credits</h2>
+        <p class="package-price">EUR {{ package.price_label }}</p>
+        <p class="package-description">
+          {% if package.key == 'credits_10' %}
+            A low-risk way to translate your first average book and see the EPUB output.
+          {% elif package.key == 'credits_50' %}
+            The recommended pack for regular readers who want a few books ready to go.
+          {% else %}
+            The best fit for heavier usage, larger reading lists, and repeated testing.
+          {% endif %}
+        </p>
+      </div>
+      <ul class="package-features">
+        {% if package.key == 'credits_10' %}
+          <li>About 1 average book</li>
+          <li>Smallest upfront spend</li>
+          <li>Good first checkout test</li>
+        {% elif package.key == 'credits_50' %}
+          <li>About 5 average books</li>
+          <li>Better price per credit</li>
+          <li>Recommended for most users</li>
+        {% else %}
+          <li>About 12 average books</li>
+          <li>Lowest price per credit</li>
+          <li>Good for small teams</li>
+        {% endif %}
+      </ul>
+      {% if user is defined and user %}
+        <a class="button" href="/billing">Buy {{ package.credits }} credits</a>
+      {% else %}
+        <a class="button" href="/register">Get started for free</a>
+      {% endif %}
+    </article>
+  {% endfor %}
+</section>
+
+<section class="billing-notes" aria-label="Pricing notes">
+  <div class="mini-note"><strong>No expiry</strong><br>Credits stay on your account for now.</div>
+  <div class="mini-note"><strong>Paddle payments</strong><br>Checkout is handled by Paddle after signup.</div>
+  <div class="mini-note"><strong>Open-source friendly</strong><br>You can self-host and bring your own translation setup.</div>
+</section>
+
+<section class="panel pricing-banner">
+  <div>
+    <p class="eyebrow">Need control?</p>
+    <h2>Self-host EPUB Translate with Docker Compose.</h2>
+    <p>Run the web app, worker, Redis, PostgreSQL, and optional LibreTranslate service in your own environment.</p>
+  </div>
+  <a class="button secondary" href="/self-hosting">Self host</a>
+</section>
+{% endblock %}

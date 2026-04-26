@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.models.job import Job, JobStatus
 from app.models.user import User, UserTier
 from app.services.app_settings import get_global_free_active_job_limit
+from app.services.credits import credits_enabled, ensure_user_has_credits, spend_credits_for_job, translation_job_credit_cost
 
 
 ACTIVE_FREE_STATUSES = (
@@ -61,6 +62,7 @@ def mark_stale_active_jobs(db: Session, *, user: User | None = None) -> int:
         stmt = stmt.where(Job.user_id == user.id)
 
     stale_jobs = list(db.scalars(stmt))
+    now = datetime.now(timezone.utc)
     for job in stale_jobs:
         progress = dict(job.progress or {})
         progress["stage"] = JobStatus.FAILED.value
@@ -68,6 +70,7 @@ def mark_stale_active_jobs(db: Session, *, user: User | None = None) -> int:
         job.status = JobStatus.FAILED
         job.error_message = "Job became stale after worker interruption. Please retry."
         job.progress = progress
+        job.failed_at = job.failed_at or now
         db.add(job)
 
     if stale_jobs:
@@ -105,6 +108,8 @@ def ensure_can_start_job(db: Session, user: User, *, original_filename: str) -> 
     duplicate_job = find_active_duplicate_job(db, user=user, original_filename=original_filename)
     if duplicate_job is not None:
         raise ValueError("This EPUB already has an active translation job. Please wait for it to finish or fail before uploading it again.")
+    if credits_enabled():
+        ensure_user_has_credits(user, translation_job_credit_cost())
     if user.tier != UserTier.FREE:
         return
     if count_active_free_jobs(db) >= get_global_free_active_job_limit(db):
@@ -132,9 +137,13 @@ def create_job(
         translator_provider=translator_provider,
         source_language=source_language,
         target_language=target_language,
+        credits_charged=0,
         progress={"stage": JobStatus.UPLOADED.value},
     )
     db.add(job)
+    db.flush()
+    if credits_enabled():
+        spend_credits_for_job(db, user=user, job=job, credits=translation_job_credit_cost())
     db.commit()
     db.refresh(job)
     return job
@@ -147,6 +156,8 @@ def update_job_status(db: Session, job: Job, status: JobStatus, *, error_message
         job.progress = progress
     if status == JobStatus.COMPLETED:
         job.completed_at = datetime.now(timezone.utc)
+    if status == JobStatus.FAILED and job.failed_at is None:
+        job.failed_at = datetime.now(timezone.utc)
     db.add(job)
     db.commit()
     db.refresh(job)

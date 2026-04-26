@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, UploadFile, status
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,7 @@ from app.models.job import Job
 from app.models.user import User, UserTier
 from app.services.app_settings import get_global_free_active_job_limit, set_global_free_active_job_limit
 from app.services.auth import authenticate_user, create_user, get_user_by_email
+from app.services.credits import available_credit_packages, credits_enabled, translation_job_credit_cost
 from app.services.filenames import translated_filename_from_title
 from app.services.jobs import (
     create_job,
@@ -29,6 +30,8 @@ from app.services.jobs import (
     mark_stale_active_jobs,
 )
 from app.services.storage import result_path, save_upload
+from app.services.paddle import PaddleError, create_checkout_url, extract_completed_payment, parse_webhook_payload, verify_paddle_signature
+from app.services.credits import add_purchase_credits
 from app.services.translation_options import all_translation_options, available_translation_options, validate_translation_request
 from app.tasks.worker import queue_translation_job, resume_translation_job
 from app.services.translators.gemini import GeminiTranslator
@@ -47,12 +50,19 @@ def recover_jobs(db: Session, *, user: User | None = None) -> int:
     return mark_jobs_requeued(db, recoverable_jobs)
 
 
+def optional_current_user(request: Request, db: Session) -> User | None:
+    try:
+        return current_user(request, db)
+    except HTTPException:
+        return None
+
+
 def render(request: Request, template_name: str, context: dict, status_code: int = 200) -> HTMLResponse:
     csrf_token = read_csrf_token(request) or new_csrf_token()
     response = templates.TemplateResponse(
         request,
         template_name,
-        {"request": request, "csrf_token": csrf_token, **context},
+        {"request": request, "csrf_token": csrf_token, "credits_enabled": credits_enabled(), **context},
         status_code=status_code,
     )
     set_csrf_cookie(response, csrf_token)
@@ -61,14 +71,28 @@ def render(request: Request, template_name: str, context: dict, status_code: int
 
 @router.get("/", response_class=HTMLResponse)
 def home(request: Request, db: Session = Depends(get_db)):
-    user = None
-    try:
-        user = current_user(request, db)
-    except HTTPException:
-        pass
+    user = optional_current_user(request, db)
     if user:
         return RedirectResponse("/jobs", status_code=status.HTTP_303_SEE_OTHER)
+    if not credits_enabled():
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
     return render(request, "index.html", {"user": None})
+
+
+@router.get("/pricing", response_class=HTMLResponse)
+def pricing_page(request: Request, db: Session = Depends(get_db)):
+    if not credits_enabled():
+        user = optional_current_user(request, db)
+        return RedirectResponse("/jobs" if user else "/login", status_code=status.HTTP_303_SEE_OTHER)
+    return render(
+        request,
+        "pricing.html",
+        {
+            "user": optional_current_user(request, db),
+            "packages": available_credit_packages(),
+            "required_credits": translation_job_credit_cost(),
+        },
+    )
 
 
 @router.get("/register", response_class=HTMLResponse)
@@ -138,7 +162,13 @@ def jobs_page(request: Request, user: User = Depends(current_user), db: Session 
     return render(
         request,
         "jobs/list.html",
-        {"user": user, "jobs": jobs, "error": None, "translation_options": all_translation_options()},
+        {
+            "user": user,
+            "jobs": jobs,
+            "error": None,
+            "translation_options": all_translation_options(),
+            "required_credits": translation_job_credit_cost(),
+        },
     )
 
 
@@ -175,14 +205,133 @@ def upload_job(
         queue_translation_job(job.id)
         return RedirectResponse(f"/jobs/{job.id}", status_code=status.HTTP_303_SEE_OTHER)
     except ValueError as exc:
+        db.rollback()
         mark_stale_active_jobs(db, user=user)
         jobs = list(db.scalars(select(Job).where(Job.user_id == user.id).order_by(Job.created_at.desc())))
         return render(
             request,
             "jobs/list.html",
-            {"user": user, "jobs": jobs, "error": str(exc), "translation_options": all_translation_options()},
+            {
+                "user": user,
+                "jobs": jobs,
+                "error": str(exc),
+                "translation_options": all_translation_options(),
+                "required_credits": translation_job_credit_cost(),
+            },
             status_code=400,
         )
+
+
+@router.get("/billing", response_class=HTMLResponse)
+def billing_page(request: Request, user: User = Depends(current_user)):
+    if not credits_enabled():
+        return RedirectResponse("/jobs", status_code=status.HTTP_303_SEE_OTHER)
+    return render(
+        request,
+        "billing/index.html",
+        {
+            "user": user,
+            "packages": available_credit_packages(),
+            "required_credits": translation_job_credit_cost(),
+            "error": None,
+        },
+    )
+
+
+@router.post("/billing/checkout")
+def create_billing_checkout(
+    request: Request,
+    package_key: str = Form(...),
+    csrf_token: str = Form(...),
+    user: User = Depends(current_user),
+):
+    if not credits_enabled():
+        return RedirectResponse("/jobs", status_code=status.HTTP_303_SEE_OTHER)
+    validate_csrf(request, csrf_token)
+    try:
+        checkout_url = create_checkout_url(user_id=user.id, package_key=package_key)
+    except ValueError as exc:
+        return render(
+            request,
+            "billing/index.html",
+            {
+                "user": user,
+                "packages": available_credit_packages(),
+                "required_credits": translation_job_credit_cost(),
+                "error": str(exc),
+            },
+            status_code=400,
+        )
+    except PaddleError as exc:
+        return render(
+            request,
+            "billing/index.html",
+            {
+                "user": user,
+                "packages": available_credit_packages(),
+                "required_credits": translation_job_credit_cost(),
+                "error": str(exc),
+            },
+            status_code=400,
+        )
+    return RedirectResponse(checkout_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/billing/payment-pending", response_class=HTMLResponse)
+def payment_pending_page(request: Request, user: User = Depends(current_user)):
+    if not credits_enabled():
+        return RedirectResponse("/jobs", status_code=status.HTTP_303_SEE_OTHER)
+    return render(request, "billing/payment_pending.html", {"user": user})
+
+
+@router.post("/webhooks/paddle")
+async def paddle_webhook(request: Request, db: Session = Depends(get_db)):
+    if not credits_enabled():
+        return JSONResponse({"status": "ignored"})
+    raw_body = await request.body()
+    signature = request.headers.get("Paddle-Signature")
+    if not verify_paddle_signature(raw_body, signature):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Paddle webhook signature.")
+    try:
+        payload = parse_webhook_payload(raw_body)
+        payment = extract_completed_payment(payload)
+        if payment is None:
+            return JSONResponse({"status": "ignored"})
+        add_purchase_credits(
+            db,
+            user_id=payment["user_id"],
+            package_key=payment["package_key"],
+            paddle_event_id=payment["event_id"],
+            paddle_transaction_id=payment["paddle_transaction_id"],
+            payment_amount=payment["payment_amount"],
+            currency=payment["currency"],
+            payment_status=payment["status"],
+        )
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Paddle webhook.") from exc
+    return JSONResponse({"status": "ok"})
+
+
+@router.get("/terms-and-conditions", response_class=HTMLResponse)
+def terms_page(request: Request, db: Session = Depends(get_db)):
+    return render(request, "legal/terms.html", {"user": optional_current_user(request, db)})
+
+
+@router.get("/privacy-policy", response_class=HTMLResponse)
+def privacy_page(request: Request, db: Session = Depends(get_db)):
+    return render(request, "legal/privacy.html", {"user": optional_current_user(request, db)})
+
+
+@router.get("/refund-policy", response_class=HTMLResponse)
+def refund_policy_page(request: Request, db: Session = Depends(get_db)):
+    return render(request, "legal/refund.html", {"user": optional_current_user(request, db)})
+
+
+@router.get("/self-hosting", response_class=HTMLResponse)
+def self_hosting_page(request: Request, db: Session = Depends(get_db)):
+    return render(request, "self_hosting.html", {"user": optional_current_user(request, db)})
 
 
 @router.get("/jobs/{job_id}", response_class=HTMLResponse)

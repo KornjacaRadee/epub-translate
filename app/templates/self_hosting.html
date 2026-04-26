@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Self-hosting - EPUB Translate{% endblock %}
+{% block content %}
+<section class="page-hero" aria-labelledby="self-hosting-title">
+  <div>
+    <p class="eyebrow">Self-hosting</p>
+    <h1 id="self-hosting-title">Run EPUB Translate with Docker Compose.</h1>
+    <p>Bring your own environment variables and choose Gemini, LibreTranslate, or both. LibreTranslate is optional, not mandatory, and the app can run without it.</p>
+  </div>
+  <a class="button" href="/register">Try the app</a>
+</section>
+
+<section class="self-host-grid">
+  <article class="panel content-prose">
+    <h2>Fastest local setup</h2>
+    <p>Use the dedicated local compose file for self-hosting. It runs in ENVIRONMENT=local, so credits, Paddle checkout, pricing, and payment pages stay disabled. Database migrations run automatically when the app container starts.</p>
+    <pre class="code-block"><code>cp .env.local.example .env
+docker compose -f docker-compose.local.yml up -d</code></pre>
+
+    <h2>Minimum services</h2>
+    <p>The web app handles pages and uploads. The worker performs long translation jobs. Celery beat is included so the same stack also works if you later switch to hosted billing mode.</p>
+    <ul class="check-list">
+      <li>App: FastAPI and Jinja pages on port 8000.</li>
+      <li>Worker: background EPUB extraction, translation, and rebuild tasks.</li>
+      <li>Beat: scheduled maintenance tasks.</li>
+      <li>PostgreSQL and Redis: persistent database and task broker.</li>
+    </ul>
+
+    <h2>Translation engines</h2>
+    <p>You can use Gemini by setting GEMINI_API_KEY, LibreTranslate by enabling the optional LibreTranslate service, or both at the same time. If both are configured, users can choose the engine from the upload form.</p>
+    <pre class="code-block"><code># Gemini-only, lighter stack
+ENABLE_LIBRETRANSLATE=false
+GEMINI_API_KEY=your-gemini-key
+
+# To start optional LibreTranslate too, set this in .env
+ENABLE_LIBRETRANSLATE=true
+
+docker compose -f docker-compose.local.yml --profile libretranslate up -d</code></pre>
+    <div class="alert alert-info" role="status">
+      <span class="alert-icon" aria-hidden="true">i</span>
+      <p>Gemini is the easiest option for most local installs. LibreTranslate is useful when you want a local translation service, but it is optional and heavier to run.</p>
+    </div>
+  </article>
+
+  <aside class="panel">
+    <h2>Configuration checklist</h2>
+    <ul class="check-list">
+      <li>Set a long random SECRET_KEY.</li>
+      <li>Set DEFAULT_ADMIN_EMAIL and DEFAULT_ADMIN_PASSWORD.</li>
+      <li>Add GEMINI_API_KEY if you want Gemini translations.</li>
+      <li>Use the libretranslate profile only when you want that extra service.</li>
+      <li>Keep ENVIRONMENT=local for self-hosted use without payments.</li>
+      <li>Back up PostgreSQL data, uploads, and results.</li>
+    </ul>
+    <div class="alert alert-info" role="status">
+      <span class="alert-icon" aria-hidden="true">i</span>
+      <p>For the full hosted billing experience, switch ENVIRONMENT to "production" and configure Paddle sandbox values before accepting real payments.</p>
+    </div>
+  </aside>
+</section>
+
+<section class="panel content-prose">
+  <p class="eyebrow">Docker Compose</p>
+  <h2>Local compose file</h2>
+  <p>This is the local self-hosting shape. The real repository includes it as docker-compose.local.yml. It has no Paddle variables, starts without LibreTranslate by default, and uses a profile when you want LibreTranslate.</p>
+  <pre class="code-block compose-block"><code>services:
+  app:
+    image: ghcr.io/kornjacaradee/epub-translate:latest
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      SECRET_KEY: replace-with-a-long-random-secret
+      ENVIRONMENT: local
+      DEFAULT_ADMIN_EMAIL: admin@example.com
+      DEFAULT_ADMIN_PASSWORD: change-this-password
+      ENABLE_LIBRETRANSLATE: "false"
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+      GEMINI_API_KEY: ""
+      GEMINI_MODEL: gemini-2.5-flash-lite
+      GEMINI_BATCH_CHAR_BUDGET: 24000
+      RUN_MIGRATIONS: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+
+  worker:
+    image: ghcr.io/kornjacaradee/epub-translate:latest
+    command: celery -A app.tasks.celery_worker worker --loglevel=INFO
+    environment:
+      SECRET_KEY: replace-with-a-long-random-secret
+      ENVIRONMENT: local
+      DEFAULT_ADMIN_EMAIL: admin@example.com
+      DEFAULT_ADMIN_PASSWORD: change-this-password
+      ENABLE_LIBRETRANSLATE: "false"
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+      GEMINI_API_KEY: ""
+      GEMINI_MODEL: gemini-2.5-flash-lite
+      GEMINI_BATCH_CHAR_BUDGET: 24000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+
+  beat:
+    image: ghcr.io/kornjacaradee/epub-translate:latest
+    command: celery -A app.tasks.celery_worker beat --loglevel=INFO
+    environment:
+      SECRET_KEY: replace-with-a-long-random-secret
+      ENVIRONMENT: local
+      DEFAULT_ADMIN_EMAIL: admin@example.com
+      DEFAULT_ADMIN_PASSWORD: change-this-password
+      ENABLE_LIBRETRANSLATE: "false"
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+      GEMINI_API_KEY: ""
+      GEMINI_MODEL: gemini-2.5-flash-lite
+      GEMINI_BATCH_CHAR_BUDGET: 24000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: epub_translate
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d epub_translate"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  libretranslate:
+    image: ghcr.io/kornjacaradee/epub-translate-libretranslate:latest
+    profiles: ["libretranslate"]
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      LT_HOST: 0.0.0.0
+      LT_PORT: 5000
+      LT_THREADS: 4
+    volumes:
+      - ./models:/models:ro
+      - libretranslate_data:/home/libretranslate/.local
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/languages', timeout=10).read()"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  pgdata:
+  libretranslate_data:</code></pre>
+</section>
+{% endblock %}

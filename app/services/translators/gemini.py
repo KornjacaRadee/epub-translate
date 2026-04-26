@@ -17,7 +17,6 @@ LogCallback = Callable[[str], None]
 
 class GeminiTranslator:
     cache_namespace = "gemini"
-    batch_char_budget = 12000
 
     def __init__(
         self,
@@ -28,6 +27,7 @@ class GeminiTranslator:
     ):
         self.api_key = api_key or settings.gemini_api_key
         self.model = model or settings.gemini_model
+        self.batch_char_budget = settings.gemini_batch_char_budget
         self.log_callback = log_callback
         if not self.api_key:
             raise GeminiTranslateError("Gemini is not configured. Set GEMINI_API_KEY to use Gemini translation.")

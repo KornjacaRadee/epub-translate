@@ -1,134 +1,243 @@
 {% extends "base.html" %}
+{% block title %}Your translations - EPUB Translate{% endblock %}
 {% block content %}
-<section class="panel">
+{% set can_start_with_credits = (not credits_enabled) or user.credit_balance >= required_credits %}
+<section class="page-hero" aria-labelledby="dashboard-title">
+  <div>
+    <p class="eyebrow">Dashboard</p>
+    <h1 id="dashboard-title">Your translations</h1>
+    <p>Your jobs stay organized here while EPUB Translate processes books in the background.</p>
+  </div>
+  {% if credits_enabled %}
+    <div class="button-row">
+      <a class="button secondary" href="/billing">Buy credits</a>
+    </div>
+  {% endif %}
+</section>
+
+<section class="stats-grid" aria-label="Account summary">
+  {% if credits_enabled %}
+    <article class="stat-card">
+      <span class="stat-value">{{ user.credit_balance }}</span>
+      <span class="stat-label">Available credits</span>
+    </article>
+    <article class="stat-card">
+      <span class="stat-value">{{ required_credits }}</span>
+      <span class="stat-label">Credits per translation</span>
+    </article>
+  {% else %}
+    <article class="stat-card">
+      <span class="stat-value">Local</span>
+      <span class="stat-label">Payment disabled</span>
+    </article>
+    <article class="stat-card">
+      <span class="stat-value">Unlimited</span>
+      <span class="stat-label">Credit-free translations</span>
+    </article>
+  {% endif %}
+  <article class="stat-card">
+    <span class="stat-value">{{ jobs | length }}</span>
+    <span class="stat-label">Recent translations</span>
+  </article>
+</section>
+
+{% if error %}
+  <div class="alert alert-error" role="alert">
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <p><span class="alert-title">Translation was not started</span>{{ error }}</p>
+  </div>
+{% elif not can_start_with_credits %}
+  <div class="alert alert-warning" role="status">
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <p>
+      <span class="alert-title">More credits needed</span>
+      You need {{ required_credits }} credits to translate this book. <a href="/billing">Buy credits to continue.</a>
+    </p>
+  </div>
+{% endif %}
+
+<div class="dashboard-grid">
+  <section class="panel" aria-labelledby="upload-title">
+    <div class="section-heading">
+      <div>
+        <h2 id="upload-title">Upload EPUB</h2>
+        <p>Choose a book, select a translation engine, and start a background translation job.</p>
+      </div>
+      {% if credits_enabled %}
+        <span class="pill">{{ required_credits }} credits</span>
+      {% else %}
+        <span class="pill">Local mode</span>
+      {% endif %}
+    </div>
+
+    <form method="post" action="/jobs" enctype="multipart/form-data" id="upload-form" class="upload-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="field file-drop">
+        <span>EPUB file</span>
+        <input class="file-input" type="file" name="file" accept=".epub,application/epub+zip" required>
+        <span class="field-help">Use a valid .epub file. The original structure is preserved as much as possible.</span>
+      </label>
+
+      {% set available_options = translation_options | selectattr("available") | list %}
+      {% if available_options %}
+        {% set default_provider = available_options[0].id %}
+        <div class="control-grid">
+          <label class="field">
+            <span>Translation engine</span>
+            <select class="control" name="translator_provider" id="translator-provider" required>
+              {% for option in available_options %}
+                <option value="{{ option.id }}">{{ option.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <div class="language-fields control-grid-inner" data-provider-panel="libretranslate" {% if default_provider != "libretranslate" %}hidden{% endif %}>
+            <label class="field">
+              <span>Source language</span>
+              <select class="control" name="source_language" data-provider-input="libretranslate" {% if default_provider != "libretranslate" %}disabled{% endif %}>
+                {% for option in translation_options %}
+                  {% if option.id == "libretranslate" and option.available %}
+                    {% for language in option.languages %}
+                      <option value="{{ language }}" {% if language == "en" %}selected{% endif %}>{{ language }}</option>
+                    {% endfor %}
+                  {% endif %}
+                {% endfor %}
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Target language</span>
+              <select class="control" name="target_language" data-provider-input="libretranslate" {% if default_provider != "libretranslate" %}disabled{% endif %}>
+                {% for option in translation_options %}
+                  {% if option.id == "libretranslate" and option.available %}
+                    {% for language in option.languages %}
+                      <option value="{{ language }}" {% if language in ["sr", "sr-Latn"] %}selected{% endif %}>{{ language }}</option>
+                    {% endfor %}
+                  {% endif %}
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+
+          <div class="language-fields control-grid-inner" data-provider-panel="gemini" {% if default_provider != "gemini" %}hidden{% endif %}>
+            <label class="field">
+              <span>Source language</span>
+              <input class="control" name="source_language" data-provider-input="gemini" list="gemini-languages" value="English" placeholder="English" {% if default_provider != "gemini" %}disabled{% endif %}>
+            </label>
+
+            <label class="field">
+              <span>Target language</span>
+              <input class="control" name="target_language" data-provider-input="gemini" list="gemini-languages" value="Serbian Latin" placeholder="Serbian Latin" {% if default_provider != "gemini" %}disabled{% endif %}>
+            </label>
+            <datalist id="gemini-languages">
+              {% for option in translation_options %}
+                {% if option.id == "gemini" %}
+                  {% for language in option.languages %}
+                    <option value="{{ language }}"></option>
+                  {% endfor %}
+                {% endif %}
+              {% endfor %}
+            </datalist>
+          </div>
+        </div>
+
+        <div class="submit-row">
+          {% if credits_enabled and not can_start_with_credits %}
+            <a class="button secondary" href="/billing">Buy credits</a>
+          {% endif %}
+          <button type="submit" id="start-translation-button" {% if not can_start_with_credits %}disabled{% endif %}>
+            {% if can_start_with_credits %}Start translation{% else %}Need more credits{% endif %}
+          </button>
+        </div>
+        <div class="upload-progress" id="upload-progress" hidden>
+          <div class="progress-row">
+            <strong>Uploading EPUB</strong>
+            <span id="upload-progress-label">Preparing...</span>
+          </div>
+          <div class="progress-bar progress-bar-indeterminate">
+            <span class="progress-fill" id="upload-progress-fill" style="width: 12%"></span>
+          </div>
+          <p class="progress-meta">Keep this tab open until the job page appears.</p>
+        </div>
+      {% else %}
+        <div class="alert alert-error" role="alert">
+          <span class="alert-icon" aria-hidden="true">!</span>
+          <p><span class="alert-title">No translation engine configured</span>Enable LibreTranslate or set GEMINI_API_KEY.</p>
+        </div>
+        <button type="submit" disabled>Start translation</button>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="panel" aria-labelledby="tips-title">
+    <div class="section-heading">
+      <div>
+        <h2 id="tips-title">Translation setup</h2>
+        <p>Small choices here make the translated book easier to read.</p>
+      </div>
+    </div>
+    <ul class="check-list">
+      <li>Use the most specific target language you want readers to see.</li>
+      <li>Gemini is best for natural phrasing when an API key is configured.</li>
+      <li>LibreTranslate remains optional for self-hosted local workflows.</li>
+      {% if credits_enabled %}
+        <li>Credits are deducted when a job starts and refunded later only if a job fails.</li>
+      {% else %}
+        <li>Local mode disables credits and payment so self-hosted usage stays simple.</li>
+      {% endif %}
+    </ul>
+  </section>
+</div>
+
+<section class="panel table-card" aria-labelledby="recent-title">
   <div class="section-heading">
     <div>
-      <h1>Your jobs</h1>
-      <p>Tier: <strong>{{ user.tier.value }}</strong></p>
+      <h2 id="recent-title">Recent translations</h2>
+      <p>Track status, progress, and downloads from one place.</p>
     </div>
   </div>
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  <form method="post" action="/jobs" enctype="multipart/form-data" id="upload-form" class="upload-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label class="field">
-      <span>Upload EPUB</span>
-      <input class="file-input" type="file" name="file" accept=".epub,application/epub+zip" required>
-    </label>
-
-    {% set available_options = translation_options | selectattr("available") | list %}
-    {% if available_options %}
-      {% set default_provider = available_options[0].id %}
-      <div class="control-grid">
-        <label class="field">
-          <span>Translation engine</span>
-          <select class="control" name="translator_provider" id="translator-provider" required>
-            {% for option in available_options %}
-              <option value="{{ option.id }}">{{ option.label }}</option>
-            {% endfor %}
-          </select>
-        </label>
-
-        <div class="language-fields control-grid-inner" data-provider-panel="libretranslate" {% if default_provider != "libretranslate" %}hidden{% endif %}>
-          <label class="field">
-            <span>Source language</span>
-            <select class="control" name="source_language" data-provider-input="libretranslate" {% if default_provider != "libretranslate" %}disabled{% endif %}>
-              {% for option in translation_options %}
-                {% if option.id == "libretranslate" and option.available %}
-                  {% for language in option.languages %}
-                    <option value="{{ language }}" {% if language == "en" %}selected{% endif %}>{{ language }}</option>
-                  {% endfor %}
-                {% endif %}
-              {% endfor %}
-            </select>
-          </label>
-
-          <label class="field">
-            <span>Target language</span>
-            <select class="control" name="target_language" data-provider-input="libretranslate" {% if default_provider != "libretranslate" %}disabled{% endif %}>
-              {% for option in translation_options %}
-                {% if option.id == "libretranslate" and option.available %}
-                  {% for language in option.languages %}
-                    <option value="{{ language }}" {% if language in ["sr", "sr-Latn"] %}selected{% endif %}>{{ language }}</option>
-                  {% endfor %}
-                {% endif %}
-              {% endfor %}
-            </select>
-          </label>
-        </div>
-
-        <div class="language-fields control-grid-inner" data-provider-panel="gemini" {% if default_provider != "gemini" %}hidden{% endif %}>
-          <label class="field">
-            <span>Source language</span>
-            <input class="control" name="source_language" data-provider-input="gemini" list="gemini-languages" value="English" placeholder="English" {% if default_provider != "gemini" %}disabled{% endif %}>
-          </label>
-
-          <label class="field">
-            <span>Target language</span>
-            <input class="control" name="target_language" data-provider-input="gemini" list="gemini-languages" value="Serbian Latin" placeholder="Serbian Latin" {% if default_provider != "gemini" %}disabled{% endif %}>
-          </label>
-          <datalist id="gemini-languages">
-            {% for option in translation_options %}
-              {% if option.id == "gemini" %}
-                {% for language in option.languages %}
-                  <option value="{{ language }}"></option>
-                {% endfor %}
-              {% endif %}
-            {% endfor %}
-          </datalist>
-        </div>
-      </div>
-
-      <div class="submit-row">
-        <button type="submit" id="start-translation-button">Start translation</button>
-      </div>
-      <div class="upload-progress" id="upload-progress" hidden>
-        <div class="progress-row">
-          <strong>Uploading EPUB</strong>
-          <span id="upload-progress-label">Preparing...</span>
-        </div>
-        <div class="progress-bar progress-bar-indeterminate">
-          <span class="progress-fill" id="upload-progress-fill" style="width: 12%"></span>
-        </div>
-      </div>
-    {% else %}
-      <p class="error">No translation engine is configured. Enable LibreTranslate or set GEMINI_API_KEY.</p>
-      <button type="submit" disabled>Start translation</button>
-    {% endif %}
-  </form>
-</section>
-<section class="panel">
-  <div class="section-heading">
-    <h2>Recent translations</h2>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Book</th>
-        <th>Engine</th>
-        <th>Languages</th>
-        <th>Status</th>
-        <th>Created</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for job in jobs %}
-        <tr>
-          <td>{{ job.translated_title or job.title or job.original_filename }}</td>
-          <td>{{ job.translator_provider }}</td>
-          <td>{{ job.source_language }} -> {{ job.target_language }}</td>
-          <td>{{ job.status.value }}</td>
-          <td><time data-local-time datetime="{{ job.created_at.isoformat() }}">{{ job.created_at }}</time></td>
-          <td><a href="/jobs/{{ job.id }}">View</a></td>
-        </tr>
+  {% if jobs %}
+    <div class="responsive-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Book</th>
+            <th>Engine</th>
+            <th>Languages</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for job in jobs %}
+            <tr>
+              <td data-label="Book">
+                <span class="table-title">{{ job.translated_title or job.title or job.original_filename }}</span>
+              </td>
+              <td data-label="Engine">{{ job.translator_provider }}</td>
+              <td data-label="Languages">{{ job.source_language }} -> {{ job.target_language }}</td>
+              <td data-label="Status"><span class="status-badge status-{{ job.status.value }}">{{ job.status.value }}</span></td>
+              <td data-label="Created"><time data-local-time datetime="{{ job.created_at.isoformat() }}">{{ job.created_at }}</time></td>
+              <td data-label="Open"><a class="button secondary" href="/jobs/{{ job.id }}">View</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h3>No translations yet</h3>
+      <p>Upload your first EPUB to start a background translation job and track progress here.</p>
+      {% if can_start_with_credits %}
+        <a class="button" href="#upload-title">Upload first EPUB</a>
       {% else %}
-        <tr>
-          <td colspan="6">No jobs yet.</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+        <a class="button" href="/billing">Buy credits to continue</a>
+      {% endif %}
+    </div>
+  {% endif %}
 </section>
+
 <script>
   const providerSelect = document.querySelector("#translator-provider");
   const providerPanels = document.querySelectorAll("[data-provider-panel]");
@@ -169,7 +278,7 @@
   });
 
   uploadForm?.addEventListener("submit", () => {
-    if (!uploadProgress) return;
+    if (!uploadProgress || startButton?.disabled) return;
     uploadProgress.hidden = false;
     uploadProgressLabel.textContent = "Uploading...";
     startButton?.setAttribute("disabled", "disabled");

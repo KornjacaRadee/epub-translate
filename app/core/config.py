@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "EPUB Translate"
-    environment: Literal["development", "test", "production"] = "development"
+    environment: Literal["local", "development", "test", "production"] = "development"
     debug: bool = False
     secret_key: str = "change-me"
     session_cookie_name: str = "epub_translate_session"
@@ -33,8 +33,17 @@ class Settings(BaseSettings):
     libretranslate_retries: int = 3
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash-lite"
+    gemini_batch_char_budget: int = 24_000
     gemini_timeout_seconds: int = 120
     gemini_retries: int = 3
+    paddle_api_key: str | None = None
+    paddle_webhook_secret: str | None = None
+    paddle_environment: Literal["sandbox", "production"] = "sandbox"
+    paddle_price_id_10_credits: str | None = None
+    paddle_price_id_50_credits: str | None = None
+    paddle_price_id_120_credits: str | None = None
+    translation_job_credit_cost: int = 10
+    refund_delay_minutes: int = 10
 
     upload_dir: Path = BASE_DIR / "uploads"
     result_dir: Path = BASE_DIR / "results"

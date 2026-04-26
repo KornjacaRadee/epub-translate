@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from app.models.credit_transaction import CreditTransaction, CreditTransactionType
+from app.models.user import User
 from app.tests.helpers import extract_csrf_token
 
 
-def test_register_login_and_protected_jobs_page(client):
+def test_register_login_and_protected_jobs_page(client, db_session):
     response = client.get("/register")
     csrf_token = extract_csrf_token(response.text)
     response = client.post(
@@ -13,6 +15,11 @@ def test_register_login_and_protected_jobs_page(client):
     )
     assert response.status_code == 303
     assert response.headers["location"] == "/jobs"
+    user = db_session.query(User).filter_by(email="reader@example.com").one()
+    assert user.credit_balance == 1
+    transaction = db_session.query(CreditTransaction).filter_by(user_id=user.id).one()
+    assert transaction.transaction_type == CreditTransactionType.FREE_SIGNUP_CREDIT
+    assert transaction.credit_amount == 1
 
     jobs_response = client.get("/jobs")
     assert jobs_response.status_code == 200
