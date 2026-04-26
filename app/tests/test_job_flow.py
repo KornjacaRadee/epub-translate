@@ -24,6 +24,9 @@ def test_authenticated_user_can_create_job(client, db_session, monkeypatch, tmp_
     )
 
     jobs_page = client.get("/jobs")
+    assert "Translation engines" in jobs_page.text
+    assert "Gemini 2.5 Flash Lite" in jobs_page.text
+    assert "Ready" in jobs_page.text
     csrf_token = extract_csrf_token(jobs_page.text)
     response = client.post(
         "/jobs",
@@ -77,6 +80,8 @@ def test_authenticated_user_can_create_job(client, db_session, monkeypatch, tmp_
     assert detail.status_code == 200
     assert "Upload received" in detail.text
     assert "Preparing the translation job." in detail.text
+    assert "Translation timeline" in detail.text
+    assert "Checking EPUB" in detail.text
     assert "progress-bar-indeterminate" in detail.text
 
 

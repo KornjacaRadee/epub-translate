@@ -31,13 +31,46 @@
     </div>
   {% endif %}
 
+  {% set progress = job.progress or {} %}
+  {% set stage = progress.get("stage", job.status.value) %}
+  {% set timeline_steps = [
+    ("uploaded", "Uploaded", "File received"),
+    ("validating", "Checking EPUB", "Validating the upload"),
+    ("queued", "Queued", "Waiting for worker"),
+    ("extracting", "Reading EPUB", "Extracting text"),
+    ("translating", "Translating", "Processing batches"),
+    ("rebuilding", "Rebuilding", "Writing EPUB"),
+    ("completed", "Complete", "Ready to download")
+  ] %}
+  {% set timeline_order = ["uploaded", "validating", "queued", "extracting", "translating", "rebuilding", "completed"] %}
+  {% set current_pos = timeline_order.index(stage) if stage in timeline_order else 0 %}
+  <ol class="job-timeline" aria-label="Translation timeline">
+    {% for step_value, step_label, step_detail in timeline_steps %}
+      {% set step_pos = loop.index0 %}
+      {% if job.status.value == "failed" and step_pos == current_pos %}
+        {% set step_state = "failed" %}
+      {% elif job.status.value == "completed" or step_pos < current_pos %}
+        {% set step_state = "done" %}
+      {% elif step_pos == current_pos %}
+        {% set step_state = "current" %}
+      {% else %}
+        {% set step_state = "pending" %}
+      {% endif %}
+      <li class="timeline-step timeline-{{ step_state }}">
+        <span class="timeline-dot" aria-hidden="true"></span>
+        <div>
+          <strong>{{ step_label }}</strong>
+          <p>{{ step_detail }}</p>
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+
   {% set active_statuses = ["uploaded", "validating", "queued", "extracting", "translating", "rebuilding", "completed"] %}
   {% if job.status.value in active_statuses %}
-    {% set progress = job.progress or {} %}
     {% set percent = progress.get("percent") %}
     {% set translated = progress.get("segments_translated", 0) %}
     {% set total = progress.get("segments_total", 0) %}
-    {% set stage = progress.get("stage", job.status.value) %}
     {% if stage == "uploaded" %}
       {% set stage_label = "Upload received" %}
       {% set stage_detail = "Preparing the translation job." %}
@@ -81,8 +114,14 @@
           {% if progress.get("batches_total") %}
             | Batches: {{ progress.get("batches_completed", 0) }}/{{ progress.get("batches_total") }}
           {% endif %}
+          {% if job.updated_at %}
+            | Updated <time data-local-time datetime="{{ job.updated_at.isoformat() }}">{{ job.updated_at }}</time>
+          {% endif %}
         {% else %}
           {{ stage_detail }}
+          {% if job.updated_at %}
+            | Updated <time data-local-time datetime="{{ job.updated_at.isoformat() }}">{{ job.updated_at }}</time>
+          {% endif %}
         {% endif %}
       </p>
     </div>
@@ -99,6 +138,27 @@
   {% endif %}
 </section>
 
+<section class="panel job-meta-grid" aria-label="Job details">
+  <article>
+    <span class="stat-label">Engine</span>
+    <strong>{{ job.translator_provider }}</strong>
+  </article>
+  <article>
+    <span class="stat-label">Languages</span>
+    <strong>{{ job.source_language }} -> {{ job.target_language }}</strong>
+  </article>
+  <article>
+    <span class="stat-label">Created</span>
+    <strong><time data-local-time datetime="{{ job.created_at.isoformat() }}">{{ job.created_at }}</time></strong>
+  </article>
+  {% if credits_enabled %}
+    <article>
+      <span class="stat-label">Credits charged</span>
+      <strong>{{ job.credits_charged }}</strong>
+    </article>
+  {% endif %}
+</section>
+
 {% if job.status.value not in ["completed", "failed"] %}
 <script>
   setTimeout(function () {
@@ -106,4 +166,20 @@
   }, 5000);
 </script>
 {% endif %}
+<script>
+  document.querySelectorAll("[data-local-time]").forEach((element) => {
+    const date = new Date(element.dateTime);
+    if (Number.isNaN(date.getTime())) return;
+    const parts = new Intl.DateTimeFormat(undefined, {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    element.textContent = `${values.day}.${values.month}.${values.year} - ${values.hour}:${values.minute}`;
+  });
+</script>
 {% endblock %}

@@ -8,6 +8,7 @@ from app.models.job import JobStatus
 from app.tasks.celery_app import celery_app
 from app.services.credits import find_refundable_failed_jobs, refund_failed_job
 from app.services.checkpoints import checkpoint_exists, delete_checkpoint, load_checkpoint, save_checkpoint
+from app.services.error_messages import clean_translation_error
 from app.services.filenames import translated_filename_from_title
 from app.services.jobs import get_job_by_id, update_job_status
 from app.services.storage import move_result, upload_path
@@ -110,7 +111,7 @@ def extract_job(job_id: str) -> None:
         db.rollback()
         current = get_job_by_id(db, uuid.UUID(job_id))
         if current:
-            detail = str(exc)
+            detail = clean_translation_error(exc)
             logger.exception("Job %s failed during extraction: %s", job_id, detail)
             update_job_status(
                 db,
@@ -184,7 +185,7 @@ def translate_batch_job(job_id: str, batch_index: int) -> None:
         db.rollback()
         current = get_job_by_id(db, uuid.UUID(job_id))
         if current:
-            detail = str(exc)
+            detail = clean_translation_error(exc)
             logger.exception("Job %s failed during batch %s: %s", job_id, batch_index + 1, detail)
             update_job_status(
                 db,
@@ -268,7 +269,7 @@ def finalize_job(job_id: str) -> None:
         db.rollback()
         current = get_job_by_id(db, uuid.UUID(job_id))
         if current:
-            detail = str(exc)
+            detail = clean_translation_error(exc)
             logger.exception("Job %s failed during finalization: %s", job_id, detail)
             update_job_status(
                 db,

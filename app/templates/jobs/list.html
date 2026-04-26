@@ -41,6 +41,46 @@
   </article>
 </section>
 
+<section class="panel" aria-labelledby="engine-status-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="engine-status-title">Translation engines</h2>
+      <p>Choose the engine that fits this install. Gemini gives the best reading quality; LibreTranslate is optional for local/private workflows.</p>
+    </div>
+  </div>
+  <div class="engine-status-grid">
+    {% for option in translation_options %}
+      {% if option.id == "gemini" %}
+        {% set engine_note = "Best quality for natural book translation. Requires GEMINI_API_KEY." %}
+      {% elif option.id == "libretranslate" %}
+        {% set engine_note = "Runs as an optional local service. Private, but usually lower quality." %}
+      {% else %}
+        {% set engine_note = "Translation engine." %}
+      {% endif %}
+      <article class="engine-status-card {% if option.available %}is-ready{% else %}is-unavailable{% endif %}">
+        <div class="engine-status-top">
+          <h3>{{ option.label }}</h3>
+          {% if option.available %}
+            <span class="status-badge status-completed">Ready</span>
+          {% else %}
+            <span class="status-badge status-failed">Not ready</span>
+          {% endif %}
+        </div>
+        <p>{{ engine_note }}</p>
+        {% if option.available %}
+          {% if option.id == "gemini" %}
+            <p class="engine-status-meta">Source and target language can be typed freely.</p>
+          {% elif option.languages %}
+            <p class="engine-status-meta">{{ option.languages | length }} languages available from this server.</p>
+          {% endif %}
+        {% else %}
+          <p class="engine-status-meta">{{ option.reason or "Configure this engine to use it." }}</p>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
 {% if error %}
   <div class="alert alert-error" role="alert">
     <span class="alert-icon" aria-hidden="true">!</span>
